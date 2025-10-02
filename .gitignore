@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+.localized
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+lib
