@@ -14,9 +14,12 @@ venv/
 lib
 
 # Data and outputs
-data/
+data/match_data.json
+data/*.csv
 visualizations/
-*.csv
+
+# Keep these data files
+!data/hero_names.json
 
 # Jupyter
 .ipynb_checkpoints/
