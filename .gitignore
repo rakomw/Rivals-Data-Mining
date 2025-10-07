@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+.localized
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+lib
+
+# Data and outputs
+data/match_data.json
+data/*.csv
+visualizations/
+
+# Keep these data files
+!data/hero_names.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
