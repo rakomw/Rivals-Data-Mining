@@ -11,3 +11,18 @@ __pycache__/
 env/
 venv/
 lib
+
+# Data and outputs
+/data/
+/visualizations/
+*.csv
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
