@@ -10,11 +10,12 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 lib
 
 # Data and outputs
-/data/
-/visualizations/
+data/
+visualizations/
 *.csv
 
 # Jupyter
