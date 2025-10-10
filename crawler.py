@@ -4,8 +4,10 @@ import time
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
+# represents a game of marvel rivals --
 class Match:
-    def __init__(self, team_one, team_two, winner):
+    def __init__(self, match_id, team_one, team_two, winner):
+        self.match_id = match_id
         self.team_one = team_one
         self.team_two = team_two
         self.winner = winner
@@ -42,7 +44,7 @@ class Crawler:
         self.start_time = time.time()
         self.time_step = 0
 
-    def scrape_profile(self, profile_id, scroll_seconds: int = 15):
+    def scrape_profile(self, profile_id, scroll_seconds: int = 10):
         if self.page is None or self.page.is_closed():
             self.page = self.browser.new_page()
         url = f"https://rivalsmeta.com/player/{profile_id}"
@@ -56,10 +58,7 @@ class Crawler:
         # repeatedly scroll and click the "show more" button to load match history
         t0 = time.time()
         while time.time() - t0 < scroll_seconds:
-            # on the first page load only the correct button matches this search,
-            # but after we start clicking sometimes there are multiple matches.
-            # clicking all is hacky but reliably gets the one we want and
-            # hasn't caused noticeable side effects so far
+            # bit of a hack
             show_more_button = self.page.locator(".show-more-btn").all()
             for b in show_more_button:
                 b.click()
@@ -85,15 +84,13 @@ class Crawler:
                 continue
         # mark profile as successfully scraped
         self.profiles[profile_id] = 1
-        if (time.time() - self.start_time) > (self.time_step * 300):
-            print(f"Running for {self.time_step * 5} minutes")
-            self.time_step += 1
-            self.save_data_files()
+        # close page for good health
+        self.page.close()
 
-    def scrape_match(self, match_num):
+    def scrape_match(self, match_id):
         if self.page is None or self.page.is_closed():
             self.page = self.browser.new_page()
-        url = f"https://rivalsmeta.com/matches/{match_num}"
+        url = f"https://rivalsmeta.com/matches/{match_id}"
         self.page.goto(url, wait_until="load", timeout=0)
 
         html = self.page.content()
@@ -105,7 +102,7 @@ class Crawler:
             try:
                 # parse player info for match data
                 p = parse_player_from_row(r)
-                players_list.append(parse_player_from_row(r))
+                players_list.append(p)
                 # if we've never seen this player, add their profile link as unvisited
                 if self.profiles.get(p.player_id) is None:
                     self.profiles[p.player_id] = 0
@@ -114,12 +111,8 @@ class Crawler:
                 with open("errors.html","a") as fp:
                     fp.write(str(r))
 
-        self.match_data.append(Match(players_list[0:6],players_list[6:],1))
-        self.match_ids[match_num] = 1
-        if (time.time() - self.start_time) > (self.time_step * 300):
-            print(f"Running for {self.time_step * 5} minutes")
-            self.time_step += 1
-            self.save_data_files()
+        self.match_data.append(Match(match_id, players_list[0:6],players_list[6:],1))
+        self.match_ids[match_id] = 1
 
     def scrape_all_profiles(self):
         for id, visited in self.profiles.items():
@@ -150,10 +143,9 @@ class Crawler:
                     continue
                 else:
                     scraped += 1
-                    if scraped >= n:
+                    if scraped == n:
                         break
-        self.save_data_files()
-        return scraped >= n
+        return scraped != 0
 
     def scrape_n_matches(self, n):
         scraped = 0
@@ -166,10 +158,12 @@ class Crawler:
                     continue
                 else:
                     scraped += 1
-                    if scraped >= n:
+                    # close page for memory health
+                    if scraped % 50 == 0:
+                        self.page.close()
+                    if scraped == n:
                         break
-        self.save_data_files()
-        return scraped >= n
+        return scraped != 0
 
     def save_data_files(self):
         with open("profiles.json","w") as fp:
@@ -193,23 +187,68 @@ class Crawler:
             self.match_data = jsonpickle.decode(fp.read())
         print("Loaded data from files")
 
+    def count_unranked_matches(self):
+        count = 0
+        for m in self.match_data:
+            all_players = []
+            all_players.extend(m.team_one)
+            all_players.extend(m.team_two)
+            for p in all_players:
+                if p.rank == "-1":
+                    count += 1
+                    break
+        return count
+
+    def show_stats(self):
+        private_profile_count = 0
+        visited_profile_count = 0
+        unvisited_profile_count = 0
+        scraped_match_count = 0
+        unscraped_match_count = 0
+        for id, visited in self.profiles.items():
+            if self.profiles[id] == 1:
+                visited_profile_count += 1
+            elif self.profiles[id] == 2:
+                private_profile_count += 1
+            else:
+                unvisited_profile_count += 1
+        for id, scraped in self.match_ids.items():
+            if self.match_ids[id] == 1:
+                scraped_match_count += 1
+            else:
+                unscraped_match_count += 1
+
+        print(f"{visited_profile_count} public profiles scraped. {private_profile_count} private profiles found.")
+        print(f"{unvisited_profile_count} profiles left to visit.")
+        print(f"{scraped_match_count} matches scraped, {unscraped_match_count} left to scrape.")
+        print(f"{self.count_unranked_matches()} unranked matches included in data.")
+
+
 def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         crawler = Crawler(browser)
         crawler.load_data_files()
-        run_length = 60 * 60 * 10
+        crawler.show_stats()
+        run_length = 60 * 60 * 11
+        starting_matches = len(crawler.match_data)
         while (time.time() - crawler.start_time) < run_length:
-            new_matches = crawler.scrape_n_matches(50)
+            new_matches = crawler.scrape_n_matches(1000)
             if not new_matches:
-                new_profiles = crawler.scrape_n_profiles(10)
+                print("Exhausted known matches -- scraping profiles for more.")
+                new_profiles = crawler.scrape_n_profiles(25)
                 if not new_profiles:
-                    crawler.save_and_exit()
+                    print("***ENDING EARLY - NO UNVISITED PROFILES***")
+                    break
+            else:
+                new_matches = len(crawler.match_data) - starting_matches
+                run_mins = (time.time() - crawler.start_time) / 60
+                print(f"Scraped {new_matches} matches in {run_mins :.1f} minutes this run.")
+                print(f"{len(crawler.match_data)} matches recorded in total.")
             crawler.save_data_files()
-            print(f"{len(crawler.match_data)} matches scraped")
 
+        crawler.show_stats()
         crawler.save_and_exit()
-
 
 def split_hero_id_from_url(image_link):
     i = len(image_link) - 1
@@ -232,7 +271,7 @@ def parse_player_from_row(r):
         rank = rank[0]
     except Exception as e:
         #print(f"{str(e)} at score-delta")
-        rank = -1
+        rank = "-1"
     kda = r.find("div","kda")
     kda_arr = kda.find("div","avg").text.split()
     kills = kda_arr[0]
