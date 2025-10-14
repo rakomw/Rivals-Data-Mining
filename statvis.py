@@ -131,9 +131,10 @@ def get_match_duration(match: Dict[str, Any]) -> int:
 
     for team in [match['team_one'], match['team_two']]:
         for player in team:
+            player_duration = 0
             for _, playtime in player['heroes_played']:
-                duration = parse_time(playtime)
-                max_duration = max(max_duration, duration)
+                player_duration += parse_time(playtime)
+            max_duration = max(max_duration, player_duration)
 
     return max_duration
 
