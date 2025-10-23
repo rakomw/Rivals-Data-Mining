@@ -6,10 +6,14 @@ from bs4 import BeautifulSoup
 
 # represents a game of marvel rivals --
 class Match:
-    def __init__(self, match_id, team_one, team_two, winner):
+
+    def __init__(self, match_id, team_one=None, team_two=None, map=None, team_one_score=None, team_two_score=None, winner=None):
         self.match_id = match_id
         self.team_one = team_one
         self.team_two = team_two
+        self.map = map
+        self.team_one_score = team_one_score
+        self.team_two_score = team_two_score
         self.winner = winner
 
     def __repr__(self):
@@ -38,13 +42,13 @@ class Crawler:
     def __init__(self, browser):
         self.profiles = {}
         self.match_ids = {}
-        self.match_data = []
+        self.match_data = {}
         self.browser = browser
         self.page = self.browser.new_page()
         self.start_time = time.time()
         self.time_step = 0
 
-    def scrape_profile(self, profile_id, scroll_seconds: int = 10):
+    def scrape_profile(self, profile_id, scroll_seconds = 5, season = "Season 4"):
         if self.page is None or self.page.is_closed():
             self.page = self.browser.new_page()
         url = f"https://rivalsmeta.com/player/{profile_id}"
@@ -54,6 +58,10 @@ class Crawler:
         if len(self.page.locator(".profile-private").all()) > 0:
             self.profiles[profile_id] = 2
             return
+
+        # Choose which season's data to use
+        season_select = self.page.locator(".select-season").locator("select")
+        season_select.select_option(season)
 
         # repeatedly scroll and click the "show more" button to load match history
         t0 = time.time()
@@ -68,20 +76,59 @@ class Crawler:
         for b in dropdown_buttons:
             b.click()
         match_details = self.page.locator(".match-details").all()
-        for m in match_details:
+        for md in match_details:
             try:
+                #md.locator(".link-ind").click()
+                #print("CLICK")
                 # find link to full match details page within dropdown display
-                soup = BeautifulSoup(m.inner_html(), features="lxml")
-                link = soup.find("div", "group-replay-link").find("a").get("href")
+                soup = BeautifulSoup(md.inner_html(), features="lxml")
+                link_tag = soup.find("div", "group-replay-link")
+                link = link_tag.find("a").get("href")
                 # parse out match id number rather than storing entire url
                 num = link.split("?")[0].split("/")[-1]
                 # if this match isn't in our dataset, add it unvisited
                 if self.match_ids.get(num) is None:
                     self.match_ids[num] = 0
+                    m = Match(num)
+                    try:
+                        m.map = soup.find("div", "map").find("div", "name").text
+                    except Exception as e:
+                        print(f"Error scraping map {str(e)}")
+                        with open("errors-map.html","a") as fp:
+                            fp.write(str(e))
+                            fp.write(str(md.inner_html()))
+                            fp.write("\n*****\n")
+                        m.map = "Unknown"
+                    try:
+                        score_div = soup.find("div", "map").find("div", "score")
+                        if score_div is not None:
+                            scores = score_div.text.split(":")
+                            m.team_one_score = max(int(scores[0]),int(scores[1]))
+                            m.team_two_score = min(int(scores[0]),int(scores[1]))
+                        else:
+                            # some formats don't have a true score, we just call them 1-0
+                            m.team_one_score = 1
+                            m.team_two_score = 0
+                    except Exception as e:
+                        print(f"Error scraping score: {str(e)}")
+                        with open("errors-score.html","a") as fp:
+                            fp.write(str(e))
+                            fp.write(str(md.inner_html()))
+                            fp.write("\n*****\n")
+                        m.team_one_score = 1
+                        m.team_two_score = 0
+
+                    m.winner = 1
+                    self.match_data[num] = m
 
             except Exception as e:
-                print(str(e))
+                print(f"Error scraping matches from profile: {str(e)}")
+                with open("errors-profile.html","a") as fp:
+                    fp.write(str(e))
+                    fp.write(str(md.inner_html()))
+                    fp.write("\n*****\n")
                 continue
+
         # mark profile as successfully scraped
         self.profiles[profile_id] = 1
         # close page for good health
@@ -97,40 +144,25 @@ class Crawler:
         soup = BeautifulSoup(html,features="lxml")
         rows = soup.find_all("tr")
         rows = rows[1:]
-        players_list = []
+        team_one = []
+        team_two = []
         for r in rows:
             try:
                 # parse player info for match data
                 p = parse_player_from_row(r)
-                players_list.append(p)
+                if r.find("div", "result-border win") is not None:
+                    team_one.append(p)
+                elif r.find("div", "result-border loss") is not None:
+                    team_two.append(p)
                 # if we've never seen this player, add their profile link as unvisited
                 if self.profiles.get(p.player_id) is None:
                     self.profiles[p.player_id] = 0
             except Exception as e:
-                print(str(e))
-                with open("errors.html","a") as fp:
-                    fp.write(str(r))
+                print(f"Error scraping player from table row: {str(e)}")
 
-        self.match_data.append(Match(match_id, players_list[0:6],players_list[6:],1))
+        self.match_data[match_id].team_one = team_one
+        self.match_data[match_id].team_two = team_two
         self.match_ids[match_id] = 1
-
-    def scrape_all_profiles(self):
-        for id, visited in self.profiles.items():
-            if visited == 0:
-                try:
-                    self.scrape_profile(id)
-                except Exception as e:
-                    print(str(e))
-                    continue
-
-    def scrape_all_matches(self):
-        for id, visited in self.match_ids.items():
-            if visited == 0:
-                try:
-                    self.scrape_match(id)
-                except Exception as e:
-                    print(str(e))
-                    continue
 
     def scrape_n_profiles(self, n):
         scraped = 0
@@ -139,7 +171,8 @@ class Crawler:
                 try:
                     self.scrape_profile(id)
                 except Exception as e:
-                    print(str(e))
+                    print(f"Error while scraping profile {id}: {str(e)}")
+                    self.page.close()
                     continue
                 else:
                     scraped += 1
@@ -154,7 +187,8 @@ class Crawler:
                 try:
                     self.scrape_match(id)
                 except Exception as e:
-                    print(str(e))
+                    print(f"Error in scrape_n_matches: {str(e)}")
+                    self.page.close()
                     continue
                 else:
                     scraped += 1
@@ -166,11 +200,11 @@ class Crawler:
         return scraped != 0
 
     def save_data_files(self):
-        with open("profiles.json","w") as fp:
+        with open("profiles-v2.json","w") as fp:
             fp.write(json.dumps(self.profiles))
-        with open("match_ids.json","w") as fp:
+        with open("match_ids-v2.json","w") as fp:
             fp.write(json.dumps(self.match_ids))
-        with open("match_data.json","w") as fp:
+        with open("match_data-v2.json","w") as fp:
             fp.write(jsonpickle.encode(self.match_data))
         print("Saved data to files")
 
@@ -179,17 +213,19 @@ class Crawler:
         self.browser.close()
 
     def load_data_files(self):
-        with open("profiles.json","r") as fp:
+        with open("profiles-v2.json","r") as fp:
             self.profiles = json.load(fp)
-        with open("match_ids.json","r") as fp:
+        with open("match_ids-v2.json","r") as fp:
             self.match_ids = json.load(fp)
-        with open("match_data.json","r") as fp:
+        with open("match_data-v2.json","r") as fp:
             self.match_data = jsonpickle.decode(fp.read())
         print("Loaded data from files")
 
     def count_unranked_matches(self):
         count = 0
-        for m in self.match_data:
+        for m in self.match_data.values():
+            if m.team_one is None:
+                continue
             all_players = []
             all_players.extend(m.team_one)
             all_players.extend(m.team_two)
@@ -197,6 +233,13 @@ class Crawler:
                 if p.rank == "-1":
                     count += 1
                     break
+        return count
+
+    def count_scraped_matches(self):
+        count = 0
+        for m in self.match_data.values():
+            if m.team_one is not None:
+                count += 1
         return count
 
     def show_stats(self):
@@ -230,8 +273,8 @@ def main():
         crawler = Crawler(browser)
         crawler.load_data_files()
         crawler.show_stats()
-        run_length = 60 * 60 * 11
-        starting_matches = len(crawler.match_data)
+        run_length = 60 * 60 * 10
+        starting_matches = crawler.count_scraped_matches()
         while (time.time() - crawler.start_time) < run_length:
             new_matches = crawler.scrape_n_matches(1000)
             if not new_matches:
@@ -241,10 +284,11 @@ def main():
                     print("***ENDING EARLY - NO UNVISITED PROFILES***")
                     break
             else:
-                new_matches = len(crawler.match_data) - starting_matches
+                scraped_matches = crawler.count_scraped_matches()
+                new_matches = scraped_matches - starting_matches
                 run_mins = (time.time() - crawler.start_time) / 60
                 print(f"Scraped {new_matches} matches in {run_mins :.1f} minutes this run.")
-                print(f"{len(crawler.match_data)} matches recorded in total.")
+                print(f"{scraped_matches} matches recorded in total.")
             crawler.save_data_files()
 
         crawler.show_stats()
@@ -270,7 +314,6 @@ def parse_player_from_row(r):
         rank = r.find("div","score-delta").text.split()
         rank = rank[0]
     except Exception as e:
-        #print(f"{str(e)} at score-delta")
         rank = "-1"
     kda = r.find("div","kda")
     kda_arr = kda.find("div","avg").text.split()
