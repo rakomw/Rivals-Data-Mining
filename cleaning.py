@@ -44,6 +44,7 @@ Wolverine = 1049001
 The Punisher = 1014001
 Squirrel Girl = 1032001
 Black Widow = 1033001
+Daredevil = 1055001
 
 ----Support
 Mantis = 102001
@@ -122,6 +123,7 @@ HERO_MAP = {
     "1014001": "The Punisher",
     "1032001": "Squirrel Girl",
     "1033001": "Black Widow",
+    "1055001": "Daredevil",
 
     # Support
     "1020001":  "Mantis",  
@@ -160,6 +162,8 @@ RANK_MAP = {
     "5000": "Celestial 1",
     "5100": "Eternity/One Above All"
 }
+
+HEROES_COUNTED = 1
 
 
 def _minutes_from_time_str(time_str: str) -> float:
@@ -210,7 +214,7 @@ def clean_rank_value(rank_value) -> str:
     return RANK_MAP.get(key, f"Unknown_{n}")
 
 
-def clean_heroes_played(heroes_played, hero_map=HERO_MAP):
+def clean_heroes_played(heroes_played, hero_map=HERO_MAP, choose_top=HEROES_COUNTED):
     """Return a new list where hero IDs are replaced with names and times unified to minutes.
 
     Input example: [["1053001", "8m"], ["1039001", "42s"]]
@@ -226,6 +230,11 @@ def clean_heroes_played(heroes_played, hero_map=HERO_MAP):
         hero_name = hero_map.get(str(hero_id), f"Unknown_{hero_id}")
         minutes = _minutes_from_time_str(time_str)
         cleaned.append([hero_name, f"{minutes:.2f}m"])  # keep 2 decimals for consistency
+    if choose_top > 0:
+        cleaned.sort(key=lambda pair: _minutes_from_time_str(pair[1]), reverse=True)
+        if choose_top > len(cleaned):
+            choose_top = len(cleaned)
+        cleaned = cleaned[0:choose_top]
     return cleaned
 
 
@@ -286,7 +295,12 @@ def clean_match(match: dict) -> dict:
     - Randomly flips teams and winner (50%) for balanced training
     """
     if not isinstance(match, dict):
-        return match
+        return None
+    elif match.get("team_one") is None or match.get("team_two") is None:
+        return None
+    elif match.get("team_one") == [] or match.get("team_two") == []:
+        return None
+
     m = deepcopy(match)
     m["team_one"] = [clean_player(p) for p in match.get("team_one", [])]
     m["team_two"] = [clean_player(p) for p in match.get("team_two", [])]
@@ -316,13 +330,16 @@ def clean_all_matches(matches):
     """Return a new list of matches with hero IDs replaced and times normalized to minutes."""
     if not isinstance(matches, list):
         return matches
-    return [clean_match(mtch) for mtch in matches]
+    cleaned = [clean_match(mtch) for mtch in matches]
+    return [m for m in cleaned if m is not None]
 
 def main():
     # Load the raw JSON list of matches
-    with open("match_data-2.json", "r") as f:
+    with open("data/match_data-v2.json", "r") as f:
         matches = json.load(f)
 
+    matches = list(matches.values())
+    print(len(matches))
     # Show a small BEFORE sample (first player's heroes in first match)
     try:
         sample_before = matches[0]["team_one"][0]["heroes_played"]
@@ -332,6 +349,7 @@ def main():
 
     # Clean all matches
     cleaned = clean_all_matches(matches)
+    print(len(cleaned))
 
     # Show a small AFTER sample to verify transformation
     try:
@@ -344,7 +362,7 @@ def main():
     print("AFTER:", sample_after)
 
     # Write cleaned results to a new file for inspection
-    out_path = "match_data_clean.json"
+    out_path = "data/match_data_one_hero.json"
     with open(out_path, "w") as f:
         json.dump(cleaned, f, indent=2)
 
