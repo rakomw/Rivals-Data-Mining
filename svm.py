@@ -2,8 +2,12 @@ import json
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
+from sklearn.linear_model import SGDClassifier
+from sklearn.kernel_approximation import RBFSampler
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.decomposition import PCA
 from typing import List, Dict, Any
 import re
 
@@ -74,6 +78,26 @@ def load_match_data(filepath: str) -> List[Dict[str, Any]]:
     with open(filepath, 'r') as fp:
         return json.load(fp)
     
+def extract_hero_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
+    hero_stats = []
+    for match in match_data:
+        team_one_heroes = match['team_one_hero_vector']
+        team_two_heroes = match['team_two_hero_vector']
+        hero_stats.append({
+            'team_one_heroes': team_one_heroes,
+            'team_two_heroes': team_two_heroes
+        })
+    df = pd.DataFrame(hero_stats)
+    df = df.join(df.pop('team_one_heroes').apply(pd.Series).add_prefix('Team1_Hero_'))
+    df = df.join(df.pop('team_two_heroes').apply(pd.Series).add_prefix('Team2_Hero_'))
+    return df
+    #hero_pca = PCA(n_components='mle', svd_solver='full')
+    print(df.head(1))
+    hero_pca = PCA(n_components=0.80, svd_solver='full')
+    pca_df = hero_pca.fit_transform(df)
+    #team_two_hero_pca = hero_pca.fit_transform(team_two_heroes)
+    #return pd.DataFrame(pca_df)
+
 def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
     """Extract team-level statistics for each match.
 
@@ -87,9 +111,9 @@ def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
 
     for match in match_data:
         duration = get_match_duration(match)
-        #map = match['map']
+        map = match['map']
 
-        team_one_heroes = match['team_one_hero_vector']
+        #team_one_heroes = match['team_one_hero_vector']
         team_one_kills = sum(parse_number(p['kills']) for p in match['team_one'])
         team_one_deaths = sum(parse_number(p['deaths']) for p in match['team_one'])
         team_one_assists = sum(parse_number(p['assists']) for p in match['team_one'])
@@ -100,7 +124,7 @@ def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
         team_one_damage_healed = sum(parse_number(p['damage_healed']) for p in match['team_one'])
         team_one_accuracy = sum(parse_number(p['accuracy']) for p in match['team_one'])
 
-        team_two_heroes = match['team_two_hero_vector']
+        #team_two_heroes = match['team_two_hero_vector']
         team_two_kills = sum(parse_number(p['kills']) for p in match['team_two'])
         team_two_deaths = sum(parse_number(p['deaths']) for p in match['team_two'])
         team_two_assists = sum(parse_number(p['assists']) for p in match['team_two'])
@@ -115,7 +139,9 @@ def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
 
         team_stats.append({
             'match_duration': duration,
-            #'team_one_heroes': team_one_heroes,
+            #'team_one_heroes': team_one_hero_pca.apply(pd.Series),
+            #'team_two_heroes': team_two_hero_pca.apply(pd.Series),
+            #'map': map,
             'team_one_kills': team_one_kills,
             'team_one_deaths': team_one_deaths,
             'team_one_assists': team_one_assists,
@@ -125,7 +151,6 @@ def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
             'team_one_damage_taken': team_one_damage_taken,
             'team_one_damage_healed': team_one_damage_healed,
             'team_one_accuracy': team_one_accuracy,
-            #'team_two_heroes': team_two_heroes,
             'team_two_kills': team_two_kills,
             'team_two_deaths': team_two_deaths,
             'team_two_assists': team_two_assists,
@@ -139,8 +164,7 @@ def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
         })
 
     df = pd.DataFrame(team_stats)
-    #df = df.join(df.pop('team_one_heroes').apply(pd.Series).add_prefix('Team1_Hero_'))
-    #df = df.join(df.pop('team_two_heroes').apply(pd.Series).add_prefix('Team2_Hero_'))
+
     return df
 
 def parse_number(value: str) -> float:
@@ -213,21 +237,34 @@ def encode_team_heroes(match_data: List[Dict[str, Any]], hero_encoder: Dict[str,
                 
 
 def main():
-    match_data = load_match_data('data/match_data_clean.json')
+    #match_data = load_match_data('data/match_data_clean.json')
     #hero_encoder = OneHotEncoder(categories=list(HERO_MAP.values()),sparse_output=False, handle_unknown='ignore')
-    hero_encoder = {}
-    for k in range(len(list(HERO_MAP.items()))):
-        hero_encoder[list(HERO_MAP.values())[k]] = k
-    encoded_heroes_data = encode_team_heroes(match_data, hero_encoder)
-    stats_df = extract_match_stats(match_data)
-
-    print(stats_df.head(1))
+    #hero_encoder = {}
+    #for k in range(len(list(HERO_MAP.items()))):
+    #    hero_encoder[list(HERO_MAP.values())[k]] = k
+    #encoded_heroes_data = encode_team_heroes(match_data, hero_encoder)
+    #map_encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    #hero_df = extract_hero_stats(encoded_heroes_data)
+    #stats_df = extract_match_stats(encoded_heroes_data)
+    #print(hero_df.head(1))
+    #print(stats_df.head(1))
+    #map_encoded = map_encoder.fit_transform(stats_df[['map']])
+    #stats_df = stats_df.drop(columns=['map']).join(pd.DataFrame(map_encoded, columns=map_encoder.get_feature_names_out(['map'])))
+    #stats_df = stats_df.join(hero_df)
+    #stats_df.columns = stats_df.columns.astype(str)
+    
+    #stats_df.to_csv('data/stats_and_heroes.csv', index=False)
+    stats_df = pd.read_csv('data/stats_and_heroes.csv')
+    #print(stats_df.head(1))
 
     x = stats_df.drop(columns=['is_winner_team_one'])
     y = stats_df['is_winner_team_one'].astype(int)
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+    rbf_feature = RBFSampler(gamma='scale', n_components=48, random_state=42)
+    x_features = rbf_feature.fit_transform(x)
+    x_train, x_test, y_train, y_test = train_test_split(x_features, y, test_size=0.2, random_state=23)
     
-    model = SVC(random_state=13)
+    #model = SVC(random_state=13)
+    model = LinearSVC(random_state=13, max_iter=1000)
     model.fit(x_train, y_train)
     y_pred = model.predict(x_test)
     accuracy = accuracy_score(y_test, y_pred)
