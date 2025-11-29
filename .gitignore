@@ -15,6 +15,8 @@ lib
 
 # Data and outputs
 data/match_data.json
+data/match_data-92k.json
+data/match_data-v2.json
 data/*.csv
 visualizations/
 
@@ -30,3 +32,4 @@ visualizations/
 *.swp
 *.swo
 *~
+
