@@ -163,7 +163,7 @@ RANK_MAP = {
     "5100": "Eternity/One Above All"
 }
 
-HEROES_COUNTED = 1
+HEROES_COUNTED = 0  # Set to N to keep only top N heroes by time; 0 to keep all
 
 
 def _minutes_from_time_str(time_str: str) -> float:
@@ -251,6 +251,7 @@ def clean_player(player: dict) -> dict:
     p["damage"] = str(player.get("damage", "0")).replace(',', '')
     p["damage_taken"] = str(player.get("damage_taken", "0")).replace(',', '')
     p["damage_healed"] = str(player.get("damage_healed", "0")).replace(',', '')
+    p["accuracy"] = str(player.get("accuracy", "0")).replace('%', '')
     return p
 
 
@@ -335,7 +336,7 @@ def clean_all_matches(matches):
 
 def main():
     # Load the raw JSON list of matches
-    with open("data/match_data-v2.json", "r") as f:
+    with open("data/match_data.json", "r") as f:
         matches = json.load(f)
 
     matches = list(matches.values())
@@ -362,7 +363,7 @@ def main():
     print("AFTER:", sample_after)
 
     # Write cleaned results to a new file for inspection
-    out_path = "data/match_data_one_hero.json"
+    out_path = "data/match_data_clean.json"
     with open(out_path, "w") as f:
         json.dump(cleaned, f, indent=2)
 
