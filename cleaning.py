@@ -334,12 +334,21 @@ def clean_all_matches(matches):
     return [m for m in cleaned if m is not None]
 
 def main():
-    # Load the raw JSON list of matches
-    with open("data/match_data-v2.json", "r") as f:
+    # Load the raw JSON of matches (can be dict or list)
+    with open("match_data-3.json", "r") as f:
         matches = json.load(f)
 
-    matches = list(matches.values())
-    print(len(matches))
+    # Handle both dict- and list-shaped top-level JSON
+    if isinstance(matches, dict):
+        matches = list(matches.values())
+    elif isinstance(matches, list):
+        # already a list of matches
+        pass
+    else:
+        raise TypeError(f"Unexpected top-level JSON type: {type(matches)}")
+
+    print("Loaded", len(matches), "raw matches")
+
     # Show a small BEFORE sample (first player's heroes in first match)
     try:
         sample_before = matches[0]["team_one"][0]["heroes_played"]
@@ -349,7 +358,7 @@ def main():
 
     # Clean all matches
     cleaned = clean_all_matches(matches)
-    print(len(cleaned))
+    print("Cleaned", len(cleaned), "matches")
 
     # Show a small AFTER sample to verify transformation
     try:
@@ -362,7 +371,7 @@ def main():
     print("AFTER:", sample_after)
 
     # Write cleaned results to a new file for inspection
-    out_path = "data/match_data_one_hero.json"
+    out_path = "match_data_one_hero.json"
     with open(out_path, "w") as f:
         json.dump(cleaned, f, indent=2)
 
