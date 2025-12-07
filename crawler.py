@@ -208,24 +208,28 @@ class Crawler:
         return scraped != 0
 
     def save_data_files(self):
-        with open("profiles.json","w") as fp:
-            fp.write(json.dumps(self.profiles))
-        with open("match_ids.json","w") as fp:
-            fp.write(json.dumps(self.match_ids))
-        with open("match_data.json","w") as fp:
-            fp.write(jsonpickle.encode(self.match_data))
-        print("Saved data to files")
+        save = False
+        if save:
+            with open("profiles.json","w") as fp:
+                fp.write(json.dumps(self.profiles))
+            with open("match_ids.json","w") as fp:
+                fp.write(json.dumps(self.match_ids))
+            with open("match_data.json","w") as fp:
+                fp.write(jsonpickle.encode(self.match_data))
+            print("Saved data to files")
+        else:
+            print("Data saving disabled.")
 
     def save_and_exit(self):
         self.save_data_files()
         self.browser.close()
 
     def load_data_files(self):
-        with open("profiles.json","r") as fp:
+        with open("data/profiles.json","r") as fp:
             self.profiles = json.load(fp)
-        with open("match_ids.json","r") as fp:
+        with open("data/match_ids.json","r") as fp:
             self.match_ids = json.load(fp)
-        with open("match_data.json","r") as fp:
+        with open("data/match_data.json","r") as fp:
             self.match_data = jsonpickle.decode(fp.read())
         print("Loaded data from files")
 
@@ -287,20 +291,63 @@ class Crawler:
                 if h[0] == DAREDEVIL_ID:
                     return True
         return False
-
+    def sort_by_player(self):
+        player_matches = {}
+        for id, match in self.match_data.items():
+            players = []
+            if match.team_one is not None:
+                players.extend(match.team_one)
+            if match.team_two is not None:
+                players.extend(match.team_two)
+            for p in players:
+                if player_matches.get(p.player_id) is None:
+                    player_matches[p.player_id] = []
+                player_matches[p.player_id].append(match)
+        with open("data/matches_by_player.json","w") as fp:
+            fp.write(jsonpickle.encode(player_matches))
+    
+    def filter_individual_stats(self):
+        with open("data/matches_by_player.json","r") as fp:
+            matches_by_player = jsonpickle.decode(fp.read())
+            print(len(matches_by_player))
+            print(f"Loaded {len(matches_by_player)} players' matches")
+            individual_stats = {}
+            for player_id, matches in matches_by_player.items():
+                individual_stats[player_id] = []
+                for m in matches:
+                    players = []
+                    for p in m.team_one:
+                        if p.player_id == player_id:
+                            individual_stats[player_id].append(p)
+                            if (m.winner == 1):
+                                individual_stats[player_id][-1].is_winner = 1
+                            else:
+                                individual_stats[player_id][-1].is_winner = 0
+                    for p in m.team_two:
+                        if p.player_id == player_id:
+                            individual_stats[player_id].append(p)
+                            if (m.winner == 2):
+                                print("WINNER 2")
+                                individual_stats[player_id][-1].is_winner = 1
+                            else:
+                                individual_stats[player_id][-1].is_winner = 0
+            with open("data/individual_player_stats.json","w") as fp:
+                fp.write(jsonpickle.encode(individual_stats))
+            print("Saved individual player stats")
+            print(len(individual_stats))
+    
 def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         crawler = Crawler(browser)
         crawler.load_data_files()
-        #crawler.show_stats()
-        #daredevil_games = crawler.filter_daredevil()
-        #with open("daredevil_games.txt","w") as fp:
-        #    for id in daredevil_games:
-        #        fp.write(f"https://rivalsmeta.com/matches/{id}\n")
-
-        #print(f"Found {len(daredevil_games)} daredevil games")
-        run_length = 60 * 60 * 10
+        crawler.show_stats()
+        daredevil_games = crawler.filter_daredevil()
+        print(f"Found {len(daredevil_games)} daredevil games")
+        crawler.sort_by_player()
+        crawler.save_and_exit()
+        return
+        run_length = 60 * 60 * 0
         checkpoint = 0
         starting_matches = crawler.count_scraped_matches()
         while (time.time() - crawler.start_time) < run_length:
