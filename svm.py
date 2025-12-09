@@ -221,8 +221,8 @@ def encode_team_heroes(match_data: List[Dict[str, Any]], hero_encoder: Dict[str,
                 
 
 def main():
-    
     match_data = load_match_data('data/match_data_clean_all_heroes.json')
+    print(len(match_data))
     hero_encoder = {}
     for k in range(len(list(HERO_MAP.items()))):
         hero_encoder[list(HERO_MAP.values())[k]] = k
@@ -242,9 +242,9 @@ def main():
     stats_df = pd.DataFrame(team_stats).join(hero_df)    
     stats_df = stats_df.join(pd.Series(winners.flatten(), name='is_winner_team_one').astype(int))
     stats_df.columns = stats_df.columns.astype(str)
-
-    stats_df.to_csv('data/enhanced_stats_all_heroes.csv', index=False)
-    #stats_df = pd.read_csv('data/enhanced_stats_all_heroes_no_ranks.csv')
+    
+    #stats_df.to_csv('data/enhanced_stats_all_heroes.csv', index=False)
+    #stats_df = pd.read_csv('data/enhanced_stats_all_heroes.csv')
     print(stats_df.shape)
 
     x = stats_df.drop(columns=['is_winner_team_one'])
