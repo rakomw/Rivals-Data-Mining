@@ -10,7 +10,6 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.decomposition import PCA
 from typing import List, Dict, Any
 import re
-import nn_model
 
 HERO_MAP = {
     # Tanks
@@ -112,7 +111,9 @@ def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
 
     for match in match_data:
         duration = get_match_duration(match)
+        map = match['map']
 
+        #team_one_heroes = match['team_one_hero_vector']
         team_one_kills = sum(parse_number(p['kills']) for p in match['team_one'])
         team_one_deaths = sum(parse_number(p['deaths']) for p in match['team_one'])
         team_one_assists = sum(parse_number(p['assists']) for p in match['team_one'])
@@ -123,6 +124,7 @@ def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
         team_one_damage_healed = sum(parse_number(p['damage_healed']) for p in match['team_one'])
         team_one_accuracy = sum(parse_number(p['accuracy']) for p in match['team_one'])
 
+        #team_two_heroes = match['team_two_hero_vector']
         team_two_kills = sum(parse_number(p['kills']) for p in match['team_two'])
         team_two_deaths = sum(parse_number(p['deaths']) for p in match['team_two'])
         team_two_assists = sum(parse_number(p['assists']) for p in match['team_two'])
@@ -137,6 +139,9 @@ def extract_match_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
 
         team_stats.append({
             'match_duration': duration,
+            #'team_one_heroes': team_one_hero_pca.apply(pd.Series),
+            #'team_two_heroes': team_two_hero_pca.apply(pd.Series),
+            #'map': map,
             'team_one_kills': team_one_kills,
             'team_one_deaths': team_one_deaths,
             'team_one_assists': team_one_assists,
@@ -207,49 +212,53 @@ def parse_time(time_str: str) -> int:
     time_str = time_str.replace("m","")
     return round(60 * float(time_str))
 
+def encode_player_heroes(match_data: List[Dict[str, Any]], hero_encoder: Dict[str, int]) -> List[Dict[str, Any]]:
+    for m in match_data:
+        for team in [m['team_one'], m['team_two']]:
+            for player in team:
+                hero_vector = [0] * len(hero_encoder)
+                total_time = sum(parse_time(hero[1]) for hero in player["heroes_played"])
+                for hero in player["heroes_played"]:
+                    hero_vector[hero_encoder[hero[0]]] += parse_time(hero[1]) / total_time
+                player["hero_vector"] = hero_vector
+    return match_data
+
 def encode_team_heroes(match_data: List[Dict[str, Any]], hero_encoder: Dict[str, int]) -> List[Dict[str, Any]]:
     for m in match_data:
+
         for team in ['team_one', 'team_two']:
             hero_vector = [0] * len(hero_encoder)
             for player in m[team]:
                 total_time = sum(parse_time(hero[1]) for hero in player["heroes_played"])
                 for hero in player["heroes_played"]:
                     hero_vector[hero_encoder[hero[0]]] += parse_time(hero[1]) / total_time
-                    #hero_vector[hero_encoder[hero[0]]] += 0.5 if parse_time(hero[1]) / total_time > 0.33 else 0.1
             m[team+"_hero_vector"] = hero_vector
     return match_data
                 
 
 def main():
+    #match_data = load_match_data('data/match_data_clean.json')
+    #hero_encoder = OneHotEncoder(categories=list(HERO_MAP.values()),sparse_output=False, handle_unknown='ignore')
+    #hero_encoder = {}
+    #for k in range(len(list(HERO_MAP.items()))):
+    #    hero_encoder[list(HERO_MAP.values())[k]] = k
+    #encoded_heroes_data = encode_team_heroes(match_data, hero_encoder)
+    #map_encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    #hero_df = extract_hero_stats(encoded_heroes_data)
+    #stats_df = extract_match_stats(encoded_heroes_data)
+    #print(hero_df.head(1))
+    #print(stats_df.head(1))
+    #map_encoded = map_encoder.fit_transform(stats_df[['map']])
+    #stats_df = stats_df.drop(columns=['map']).join(pd.DataFrame(map_encoded, columns=map_encoder.get_feature_names_out(['map'])))
+    #stats_df = stats_df.join(hero_df)
+    #stats_df.columns = stats_df.columns.astype(str)
     
-    match_data = load_match_data('data/match_data_clean_all_heroes.json')
-    hero_encoder = {}
-    for k in range(len(list(HERO_MAP.items()))):
-        hero_encoder[list(HERO_MAP.values())[k]] = k
-    encoded_heroes_data = encode_team_heroes(match_data, hero_encoder)
-    hero_df = extract_hero_stats(encoded_heroes_data)
-    
-    """
-    stats_df = extract_match_stats(encoded_heroes_data)
-    print(hero_df.head(1))
-    print(stats_df.head(1))
-    stats_df = stats_df.join(hero_df)
-    stats_df.columns = stats_df.columns.astype(str)
-    """
-    
-    #Prepare dataset using NN model function
-    team_stats, winners = nn_model.prepare_dataset(encoded_heroes_data)
-    stats_df = pd.DataFrame(team_stats).join(hero_df)    
-    stats_df = stats_df.join(pd.Series(winners.flatten(), name='is_winner_team_one').astype(int))
-    stats_df.columns = stats_df.columns.astype(str)
-
-    stats_df.to_csv('data/enhanced_stats_all_heroes.csv', index=False)
-    #stats_df = pd.read_csv('data/enhanced_stats_all_heroes_no_ranks.csv')
-    print(stats_df.shape)
+    #stats_df.to_csv('data/stats_and_heroes.csv', index=False)
+    stats_df = pd.read_csv('data/stats_and_heroes.csv')
+    #print(stats_df.head(1))
 
     x = stats_df.drop(columns=['is_winner_team_one'])
     y = stats_df['is_winner_team_one'].astype(int)
-    
     rbf_feature = RBFSampler(gamma='scale', n_components=48, random_state=42)
     x_features = rbf_feature.fit_transform(x)
     x_train, x_test, y_train, y_test = train_test_split(x_features, y, test_size=0.2, random_state=23)

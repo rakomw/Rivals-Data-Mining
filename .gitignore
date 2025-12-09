@@ -17,8 +17,14 @@ lib
 data/match_data.json
 data/match_data-92k.json
 data/match_data-v2.json
+data/match_data_clean.json
 data/*.csv
+data/model_results/*.json
+data/model_results/*.png
+data/model_results/*.csv
+data/model_results/*.txt
 visualizations/
+catboost_info/
 
 # Keep these data files
 !data/hero_names.json
@@ -32,4 +38,6 @@ visualizations/
 *.swp
 *.swo
 *~
+
+
 
