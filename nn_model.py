@@ -114,9 +114,9 @@ def map_to_numeric(map_name) -> float:
         MAP_INDEX[name] = len(MAP_INDEX) + 1  # start ids at 1
     return float(MAP_INDEX[name])
 
-# ============================================================
-# Hero Role Mapping (hero-name → role)
-# ============================================================
+ # ============================================================
+ # Hero Role Mapping (hero-name → role)
+ # ============================================================
 
 HERO_ROLE = {
     # Tanks
@@ -169,6 +169,16 @@ HERO_ROLE = {
     "Luna Snow": "Support",
 }
 
+# Lowercase hero-name lookup to normalize console input
+HERO_NAMES_LOWER: Dict[str, str] = {name.lower(): name for name in HERO_ROLE.keys()}
+
+def normalize_hero_name(raw: str):
+    """Normalize a user-typed hero name to the canonical HERO_ROLE key."""
+    if not isinstance(raw, str):
+        return None
+    key = raw.strip().lower()
+    return HERO_NAMES_LOWER.get(key)
+
 # ============================================================
 # Team-Up Mapping (anchor hero -> list of recipient heroes)
 # ============================================================
@@ -197,6 +207,85 @@ TEAM_UPS: Dict[str, List[str]] = {
     "Wolverine": ["The Thing", "Hulk"],
     "Hulk": ["Black Panther"],
 }
+
+# ============================================================
+# Typical Hero Stats (for hero-only recommendations)
+# ============================================================
+
+# This will store per-hero typical stats derived from the dataset,
+# so that hero-only recommendations use realistic values instead of zeros.
+HERO_TYPICAL_STATS: Dict[str, Dict[str, float]] = {}
+
+# ============================================================
+# Helpers for Interactive Recommendation
+# ============================================================
+
+def fake_players_from_heroes(hero_names: List[str]) -> List[Dict]:
+    """Create synthetic player entries from hero names only.
+
+    We use typical per-hero stats derived from the dataset when available.
+    This lets hero-only recommendations produce feature vectors that are
+    closer to the training distribution, which yields more meaningful
+    probabilities, without requiring the user to input stats.
+    """
+    players: List[Dict] = []
+    for name in hero_names:
+        stats = HERO_TYPICAL_STATS.get(name)
+        if stats is not None:
+            minutes_val = stats.get("minutes", 10.0)
+            damage_val = stats.get("damage", 0.0)
+            taken_val = stats.get("taken", 0.0)
+            heal_val = stats.get("heal", 0.0)
+            deaths_val = stats.get("deaths", 0.0)
+            kills_val = stats.get("kills", 0.0)
+            assists_val = stats.get("assists", 0.0)
+            finals_val = stats.get("finals", 0.0)
+        else:
+            # Fallback: neutral/default values if we have no data for this hero
+            minutes_val = 10.0
+            damage_val = taken_val = heal_val = deaths_val = 0.0
+            kills_val = assists_val = finals_val = 0.0
+
+        players.append({
+            "damage": damage_val,
+            "damage_taken": taken_val,
+            "damage_healed": heal_val,
+            "deaths": deaths_val,
+            "kills": kills_val,
+            "assists": assists_val,
+            "final_hits": finals_val,
+            "rank": "Unranked",
+            "heroes_played": [(name, f"{minutes_val}m")],
+        })
+    return players
+
+
+def build_feature_vector_from_heroes(
+    friendly_heroes: List[str],
+    enemy_heroes: List[str],
+    map_name: str,
+) -> np.ndarray:
+    """Build a feature vector using only hero compositions and map.
+
+    This uses synthetic players constructed from hero names, so only
+    hero-based features (roles, team-ups, composition) and map_id
+    are meaningful. All stat-based features are effectively zero.
+    """
+    t1 = team_features(fake_players_from_heroes(friendly_heroes))
+    t2 = team_features(fake_players_from_heroes(enemy_heroes))
+
+    # Map name → numeric id
+    map_id = map_to_numeric(map_name or "")
+
+    extra = np.array(
+        [
+            map_id,
+        ],
+        dtype=np.float32,
+    )
+
+    full_vec = np.concatenate([t1, t2, extra], axis=0).astype(np.float32)
+    return full_vec
 
 
 # ============================================================
@@ -519,7 +608,7 @@ def build_feature_vector(match: Dict) -> np.ndarray:
         would cause target leakage. Scores should instead be treated like the
         winner label: something we reveal/evaluate at the end of the match,
         not as a predictor.
-    """
+    """ 
     t1 = team_features(match.get("team_one"))
     t2 = team_features(match.get("team_two"))
 
@@ -550,6 +639,146 @@ def build_feature_vector(match: Dict) -> np.ndarray:
     # Experimental implementation (diff-only), kept for reference:
     # diff = t1 - t2
     # return diff
+
+
+# ============================================================
+# Helper: Extract Score Features for Analysis (NO leakage)
+# ============================================================
+
+def extract_score_features(match: Dict) -> np.ndarray:
+    """Extract team score features for post-prediction analysis.
+
+    This does NOT feed scores into the NN during training or prediction,
+    which avoids target leakage. Instead, it lets you append score-related
+    information alongside the model's predicted probability for reporting
+    or secondary analysis.
+    """
+    # Try several common key names to stay robust to JSON variations
+    score1 = safe_float(
+        match.get("team_one_score")
+        or match.get("team1_score")
+        or match.get("score1")
+        or match.get("team_one_rounds")
+    )
+    score2 = safe_float(
+        match.get("team_two_score")
+        or match.get("team2_score")
+        or match.get("score2")
+        or match.get("team_two_rounds")
+    )
+
+    score_diff = score1 - score2
+    return np.array([score1, score2, score_diff], dtype=np.float32)
+
+
+# Example usage (outside of training):
+#
+#   vec = build_feature_vector(match)
+#   vec_std = (vec.reshape(1, -1) - mean) / std
+#   prob, _ = model.forward(vec_std)
+#   scores = extract_score_features(match)
+#   # Now you can log: match_id, prob, score1, score2, score_diff
+#
+# This keeps the NN inputs clean during training/inference while still
+# allowing you to combine predicted probability with final scores for
+# analysis or visualization.
+
+
+# ============================================================
+# Build Typical Hero Stats from Dataset
+# ============================================================
+
+def build_hero_typical_stats(matches: List[Dict]) -> None:
+    """Compute typical per-hero stats from the dataset for recommendation use.
+
+    We aggregate player stats across all matches and distribute each player's
+    stats across the heroes they played, proportional to minutes played on
+    each hero. From that, we compute per-minute stats by hero and store a
+    normalized "typical" profile in HERO_TYPICAL_STATS.
+    """
+    global HERO_TYPICAL_STATS
+
+    # Temporary accumulators: hero -> aggregated stats
+    accum: Dict[str, Dict[str, float]] = {}
+
+    for m in matches:
+        for team_key in ("team_one", "team_two"):
+            for p in m.get(team_key, []) or []:
+                player_damage = safe_float(p.get("damage"))
+                player_taken = safe_float(p.get("damage_taken"))
+                player_heal = safe_float(p.get("damage_healed"))
+                player_deaths = safe_float(p.get("deaths"))
+                player_kills = safe_float(p.get("kills"))
+                player_assists = safe_float(p.get("assists"))
+                player_finals = safe_float(p.get("final_hits"))
+
+                heroes = p.get("heroes_played", [])
+                hero_minutes_list = []
+                total_hero_minutes = 0.0
+
+                for entry in heroes:
+                    if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                        hero_name = str(entry[0])
+                        m_hero = parse_minutes(entry[1])
+                        if m_hero <= 0:
+                            continue
+                        hero_minutes_list.append((hero_name, m_hero))
+                        total_hero_minutes += m_hero
+
+                if total_hero_minutes <= 0:
+                    continue
+
+                # Distribute player stats across heroes by share of minutes
+                for hero_name, m_hero in hero_minutes_list:
+                    w = m_hero / total_hero_minutes
+                    d = accum.setdefault(hero_name, {
+                        "minutes": 0.0,
+                        "damage": 0.0,
+                        "taken": 0.0,
+                        "heal": 0.0,
+                        "deaths": 0.0,
+                        "kills": 0.0,
+                        "assists": 0.0,
+                        "finals": 0.0,
+                    })
+                    d["minutes"] += m_hero
+                    d["damage"] += player_damage * w
+                    d["taken"] += player_taken * w
+                    d["heal"] += player_heal * w
+                    d["deaths"] += player_deaths * w
+                    d["kills"] += player_kills * w
+                    d["assists"] += player_assists * w
+                    d["finals"] += player_finals * w
+
+    HERO_TYPICAL_STATS = {}
+    BASE_MINUTES = 10.0
+
+    for hero_name, s in accum.items():
+        mins = s["minutes"]
+        if mins <= 0:
+            continue
+
+        # Compute per-minute stats
+        dmg_per_min = s["damage"] / mins
+        taken_per_min = s["taken"] / mins
+        heal_per_min = s["heal"] / mins
+        deaths_per_min = s["deaths"] / mins
+        kills_per_min = s["kills"] / mins
+        assists_per_min = s["assists"] / mins
+        finals_per_min = s["finals"] / mins
+
+        HERO_TYPICAL_STATS[hero_name] = {
+            "minutes": BASE_MINUTES,
+            "damage": dmg_per_min * BASE_MINUTES,
+            "taken": taken_per_min * BASE_MINUTES,
+            "heal": heal_per_min * BASE_MINUTES,
+            "deaths": deaths_per_min * BASE_MINUTES,
+            "kills": kills_per_min * BASE_MINUTES,
+            "assists": assists_per_min * BASE_MINUTES,
+            "finals": finals_per_min * BASE_MINUTES,
+        }
+
+    print(f"[INFO] Built typical stats for {len(HERO_TYPICAL_STATS)} heroes for recommendation.")
 
 
 def prepare_dataset(matches: List[Dict]) -> Tuple[np.ndarray, np.ndarray]:
@@ -750,12 +979,136 @@ class NeuralNetwork:
         return (y_pred >= 0.5).astype(int)
 
 
+
+# ============================================================
+# Interactive Console Recommendation Mode
+# ============================================================
+
+def interactive_recommendation(model: "NeuralNetwork", mean: np.ndarray, std: np.ndarray):
+    """Console-based hero recommendation.
+
+    The user enters 5 friendly heroes and 6 enemy heroes plus an optional map
+    name, and the NN evaluates each possible hero pick (not already present)
+    as the 6th friendly hero. It returns the top recommended heroes ranked by
+    predicted Team-One win probability.
+    """
+    print("\n=== Hero Recommendation Mode ===")
+    print("Type 'q' at any prompt to exit.\n")
+
+    while True:
+        map_name = input("Enter map name (or leave blank): ").strip()
+        if map_name.lower() == "q":
+            print("Exiting recommendation mode.")
+            break
+
+        friendly_raw = input("Enter YOUR team heroes (comma-separated, up to 5): ").strip()
+        if friendly_raw.lower() == "q":
+            print("Exiting recommendation mode.")
+            break
+
+        enemy_raw = input("Enter ENEMY team heroes (comma-separated, up to 6): ").strip()
+        if enemy_raw.lower() == "q":
+            print("Exiting recommendation mode.")
+            break
+
+        # Parse and normalize hero names
+        friendly_input = [s.strip() for s in friendly_raw.split(",") if s.strip()]
+        enemy_input = [s.strip() for s in enemy_raw.split(",") if s.strip()]
+
+        friendly_heroes: List[str] = []
+        enemy_heroes: List[str] = []
+
+        for name in friendly_input:
+            norm = normalize_hero_name(name)
+            if norm is None:
+                print(f"  [WARN] Unknown friendly hero name: '{name}' (skipping)")
+            else:
+                friendly_heroes.append(norm)
+
+        for name in enemy_input:
+            norm = normalize_hero_name(name)
+            if norm is None:
+                print(f"  [WARN] Unknown enemy hero name: '{name}' (skipping)")
+            else:
+                enemy_heroes.append(norm)
+
+        # Enforce limits: up to 5 friendlies, 6 enemies
+        friendly_heroes = friendly_heroes[:5]
+        enemy_heroes = enemy_heroes[:6]
+
+        # Allow either side to be empty, but not both
+        if not friendly_heroes and not enemy_heroes:
+            print("No valid heroes parsed for either team. Please enter at least one friendly or enemy hero.\n")
+            continue
+
+        print("\nUsing heroes:")
+        print("  Friendly:", ", ".join(friendly_heroes) if friendly_heroes else "(none)")
+        print("  Enemy   :", ", ".join(enemy_heroes) if enemy_heroes else "(none)")
+        print()
+
+        # Build candidate list: all heroes not already present on either team
+        candidates = []
+        for hero in HERO_ROLE.keys():
+            if hero in friendly_heroes or hero in enemy_heroes:
+                continue
+
+            # Hypothetical pick: hero becomes the 6th friendly hero
+            team1_heroes = friendly_heroes + [hero]
+            team2_heroes = enemy_heroes
+
+            vec = build_feature_vector_from_heroes(team1_heroes, team2_heroes, map_name)
+            # Standardize using training mean/std
+            vec_std = (vec.reshape(1, -1) - mean) / std
+            prob, _ = model.forward(vec_std)
+            prob_win = float(prob[0, 0])
+
+            role = HERO_ROLE.get(hero, "Unknown")
+            candidates.append((hero, role, prob_win))
+
+        if not candidates:
+            print("No available hero candidates to evaluate.\n")
+            continue
+
+        # Group candidates by role
+        role_groups: Dict[str, List[Tuple[str, float]]] = {"Tank": [], "DPS": [], "Support": []}
+        for hero, role, p in candidates:
+            if role in role_groups:
+                role_groups[role].append((hero, p))
+
+        print("Top hero recommendations by role (Team-One win probability):")
+
+        #LOW_CONF_THRESHOLD = 0.50  # below this, we flag the role as low-confidence
+
+        for role in ["Tank", "DPS", "Support"]:
+            heroes_for_role = role_groups.get(role, [])
+            if not heroes_for_role:
+                print(f"  {role}: (no available heroes not already picked)")
+                continue
+
+            # Sort by probability and take top 3
+            heroes_for_role.sort(key=lambda x: x[1], reverse=True)
+            top_role = heroes_for_role[:3]
+
+            best_prob = top_role[0][1] if top_role else 0.0
+            print(f"  {role}:")
+            for hero, p in top_role:
+                print(f"    - {hero}: {p:.3f}")
+
+            #if best_prob < LOW_CONF_THRESHOLD:
+               # print(f"    (Warning: best {role} option has low win probability with this allied composition.)")
+
+        print()
+
 # ============================================================
 # Main Training Routine
 # ============================================================
 
 def main():
     matches = load_cleaned_matches()
+
+    # Build typical per-hero stats for recommendation mode
+    build_hero_typical_stats(matches)
+
     X, y = prepare_dataset(matches)
 
     # First split: train+val vs test
@@ -774,12 +1127,12 @@ def main():
     model.fit(
         X_train,
         y_train,
-        epochs=4000,
-        print_every=200,
-        batch_size=1024,
+        epochs=1000,       # reduced from 4000 for faster training
+        print_every=100,   # slightly more frequent logging
+        batch_size=2048,   # larger batches to reduce iterations per epoch
         X_val=X_val,
         y_val=y_val,
-        patience=10,
+        patience=5,        # stop sooner if validation loss stops improving
     )
 
     train_acc = np.mean(model.predict(X_train) == y_train)
@@ -798,6 +1151,15 @@ def main():
         mean=mean, std=std
     )
     print("[INFO] Saved model parameters → nn_weights_and_stats.npz")
+
+    # Optional: enter interactive hero recommendation mode
+    try:
+        choice = input("\nEnter 'r' to enter hero recommendation mode, or press Enter to exit: ").strip().lower()
+    except EOFError:
+        choice = ""
+
+    if choice == "r":
+        interactive_recommendation(model, mean, std)
 
 
 # ============================================================
