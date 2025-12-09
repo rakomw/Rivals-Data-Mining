@@ -1,14 +1,12 @@
 """
 Shared data preparation module for Marvel Rivals win prediction.
 Reuses parsing patterns from svm.py for consistency.
-Uses nn_model for advanced feature extraction.
 """
 import json
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from typing import List, Dict, Any, Tuple
-import nn_model
 
 # Hero ID to name mapping (43 heroes across 3 roles)
 HERO_MAP = {
@@ -83,58 +81,28 @@ HERO_ROLES = {
 
 
 def load_match_data(filepath: str) -> List[Dict[str, Any]]:
-    """Load match data from JSON file.
-
-    Args:
-        filepath: Path to the match_data.json file.
-
-    Returns:
-        List of match dictionaries containing player and game information.
-    """
+    """Load match data from JSON file."""
     with open(filepath, 'r') as fp:
         return json.load(fp)
 
 
 def parse_number(value: str) -> float:
-    """Parse numeric string with commas or percent to float.
-
-    Args:
-        value: Numeric string potentially containing commas (e.g., "1,234") or percent (e.g., "50%").
-
-    Returns:
-        Float representation of the number.
-    """
+    """Parse numeric string with commas or percent to float."""
     if isinstance(value, (int, float)):
         return float(value)
     return float(str(value).replace(',', '').replace('%', ''))
 
 
 def parse_time(time_str: str) -> int:
-    """Parse time string to seconds.
-
-    Args:
-        time_str: Time string in minutes or seconds format (e.g., "35.00m" or "19s").
-
-    Returns:
-        Total time in seconds.
-    """
+    """Parse time string to seconds."""
     if 's' in time_str:
-        # Seconds format
         return round(float(time_str.replace("s", "")))
     else:
-        # Minutes format
         return round(60 * float(time_str.replace("m", "")))
 
 
 def get_match_duration(match: Dict[str, Any]) -> int:
-    """Calculate match duration from player playtimes.
-
-    Args:
-        match: Match dictionary containing team_one and team_two.
-
-    Returns:
-        Match duration in seconds (longest playtime across all players).
-    """
+    """Calculate match duration from player playtimes."""
     max_duration = 0
 
     for team in [match['team_one'], match['team_two']]:
@@ -153,18 +121,9 @@ def create_hero_encoder() -> Dict[str, int]:
 
 
 def encode_team_heroes(match_data: List[Dict[str, Any]], hero_encoder: Dict[str, int]) -> List[Dict[str, Any]]:
-    """Encode hero compositions as time-weighted vectors for each team.
-
-    Args:
-        match_data: List of match dictionaries.
-        hero_encoder: Mapping from hero ID to index.
-
-    Returns:
-        Match data with added team_one_hero_vector and team_two_hero_vector.
-    """
+    """Encode hero compositions as time-weighted vectors for each team."""
     valid_matches = []
     for m in match_data:
-        # Skip invalid matches
         if m.get('team_one') is None or m.get('team_two') is None or m.get('winner') is None:
             continue
 
@@ -179,25 +138,16 @@ def encode_team_heroes(match_data: List[Dict[str, Any]], hero_encoder: Dict[str,
             m[team + "_hero_vector"] = hero_vector
         valid_matches.append(m)
 
-    print(f"Filtered to {len(valid_matches)} valid matches")
     return valid_matches
 
 
 def extract_team_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
-    """Extract team-level statistics for each match.
-
-    Args:
-        match_data: List of match dictionaries from the JSON file.
-
-    Returns:
-        DataFrame with team statistics and match outcomes.
-    """
+    """Extract team-level statistics for each match."""
     team_stats = []
 
     for match in match_data:
         duration = get_match_duration(match)
 
-        # Team one stats
         t1_kills = sum(parse_number(p['kills']) for p in match['team_one'])
         t1_deaths = sum(parse_number(p['deaths']) for p in match['team_one'])
         t1_assists = sum(parse_number(p['assists']) for p in match['team_one'])
@@ -208,7 +158,6 @@ def extract_team_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
         t1_damage_healed = sum(parse_number(p['damage_healed']) for p in match['team_one'])
         t1_accuracy = sum(parse_number(p['accuracy']) for p in match['team_one'])
 
-        # Team two stats
         t2_kills = sum(parse_number(p['kills']) for p in match['team_two'])
         t2_deaths = sum(parse_number(p['deaths']) for p in match['team_two'])
         t2_assists = sum(parse_number(p['assists']) for p in match['team_two'])
@@ -248,14 +197,7 @@ def extract_team_stats(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
 
 
 def extract_hero_features(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
-    """Extract hero composition features from encoded match data.
-
-    Args:
-        match_data: List of match dictionaries with hero vectors.
-
-    Returns:
-        DataFrame with hero vectors for both teams.
-    """
+    """Extract hero composition features from encoded match data."""
     hero_stats = []
     for match in match_data:
         hero_stats.append({
@@ -265,7 +207,6 @@ def extract_hero_features(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
 
     df = pd.DataFrame(hero_stats)
 
-    # Expand hero vectors into columns (matching svm.py format)
     df = df.join(df.pop('team_one_heroes').apply(pd.Series).add_prefix('Team1_Hero_'))
     df = df.join(df.pop('team_two_heroes').apply(pd.Series).add_prefix('Team2_Hero_'))
 
@@ -273,96 +214,98 @@ def extract_hero_features(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
 
 
 def get_feature_sets(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-    """Get different feature configurations for comparison.
+    """Get different feature configurations for comparison."""
+    target_col = 'is_winner_team_one'
 
-    Args:
-        df: Full DataFrame with all features (full features + hero vectors).
-
-    Returns:
-        Dictionary with feature set names and corresponding DataFrames.
-        - team_stats: Basic stats columns only (~19 features)
-        - hero_composition: Hero vectors only (86 features)
-        - combined: team_stats + hero_composition (~105 features)
-        - full: All features including nn_model advanced features (~181 features)
-    """
-    # Basic stats (subset that matches original team_stats)
     basic_stat_keywords = ['kills', 'deaths', 'assists', 'damage', 'final_hits',
                            'solo_kills', 'accuracy', 'duration']
-    stat_cols = [col for col in df.columns if any(x in col.lower() for x in basic_stat_keywords)]
+    stat_cols = [col for col in df.columns
+                 if isinstance(col, str) and col != target_col
+                 and any(x in col.lower() for x in basic_stat_keywords)]
 
-    # Hero vectors (86 features)
-    hero_cols = [col for col in df.columns if col.startswith('Team1_') or col.startswith('Team2_')]
+    hero_cols = [col for col in df.columns
+                 if isinstance(col, str) and col != target_col
+                 and (col.startswith('Team1_Hero_') or col.startswith('Team2_Hero_'))]
 
     return {
-        'team_stats': df[stat_cols] if stat_cols else df.iloc[:, :19],
+        'team_stats': df[stat_cols] if stat_cols else df.drop(columns=[target_col], errors='ignore').iloc[:, :19],
         'hero_composition': df[hero_cols],
         'combined': df[stat_cols + hero_cols] if stat_cols else df[hero_cols],
-        'full': df
     }
 
 
 def get_train_test_split(X: pd.DataFrame, y: pd.Series,
                          test_size: float = 0.2,
                          random_state: int = 42) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
-    """Split data into train and test sets with stratification.
-
-    Args:
-        X: Feature DataFrame.
-        y: Target Series.
-        test_size: Proportion of data for testing.
-        random_state: Random seed for reproducibility.
-
-    Returns:
-        Tuple of (X_train, X_test, y_train, y_test).
-    """
+    """Split data into train and test sets with stratification."""
     return train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=y)
 
 
-def load_data(json_path: str = 'data/match_data_one_hero.json') -> Tuple[pd.DataFrame, pd.Series]:
-    """Load data directly from cleaned JSON file using nn_model for advanced features.
+def get_feature_info(X: pd.DataFrame) -> Dict[str, Any]:
+    """Get feature set description."""
+    stat_cols = [c for c in X.columns if not c.startswith('Team1_Hero_') and not c.startswith('Team2_Hero_')]
+    hero_cols = [c for c in X.columns if c.startswith('Team1_Hero_') or c.startswith('Team2_Hero_')]
 
-    Args:
-        json_path: Path to the cleaned JSON file.
+    return {
+        'total_features': len(X.columns),
+        'team_stats_features': len(stat_cols),
+        'hero_composition_features': len(hero_cols),
+        'num_heroes': len(HERO_MAP),
+        'description': f"{len(X.columns)} features: {len(stat_cols)} team stats + {len(hero_cols)} hero composition ({len(HERO_MAP)} heroes x 2 teams)"
+    }
 
-    Returns:
-        Tuple of (features DataFrame, target Series).
-    """
-    print(f"Loading from {json_path}...")
+
+def generate_csv(json_path: str = 'data/match_data.json',
+                  csv_path: str = 'data/stats_and_heroes.csv') -> None:
+    """Generate CSV from JSON data with random team swapping for class balance."""
     match_data = load_match_data(json_path)
 
-    # Convert dict to list if needed
     if isinstance(match_data, dict):
         match_data = list(match_data.values())
 
-    print(f"Loaded {len(match_data)} matches")
-
-    # Encode hero compositions
     hero_encoder = create_hero_encoder()
     match_data = encode_team_heroes(match_data, hero_encoder)
 
-    # Extract hero features (86 columns)
     hero_df = extract_hero_features(match_data)
+    stats_df = extract_team_stats(match_data)
 
-    # Use nn_model for advanced team features (same as svm.py)
-    print("Extracting advanced features via nn_model...")
-    team_stats, winners = nn_model.prepare_dataset(match_data)
-    stats_df = pd.DataFrame(team_stats)
-
-    # Combine: nn_model features + hero vectors
     full_df = stats_df.join(hero_df)
-    full_df['is_winner_team_one'] = winners.flatten().astype(int)
 
-    y = full_df['is_winner_team_one']
-    X = full_df.drop(columns=['is_winner_team_one'])
+    # Randomly swap teams to balance classes (original data has all team_one wins)
+    rng = np.random.RandomState(42)
+    swap_indices = rng.rand(len(full_df)) < 0.5
 
-    print(f"Prepared {len(X)} samples with {len(X.columns)} features")
+    # Create column mapping for swaps (exclude is_winner_team_one)
+    t1_stat_cols = [c for c in full_df.columns if 'team_one' in c and c != 'is_winner_team_one']
+    t2_stat_cols = [c.replace('team_one', 'team_two') for c in t1_stat_cols]
+    t1_hero_cols = [c for c in full_df.columns if c.startswith('Team1_Hero_')]
+    t2_hero_cols = [c.replace('Team1_', 'Team2_') for c in t1_hero_cols]
+
+    # Swap by creating new dataframe
+    swapped_df = full_df.copy()
+    for t1, t2 in zip(t1_stat_cols + t1_hero_cols, t2_stat_cols + t2_hero_cols):
+        swapped_df.loc[swap_indices, t1] = full_df.loc[swap_indices, t2]
+        swapped_df.loc[swap_indices, t2] = full_df.loc[swap_indices, t1]
+
+    swapped_df.loc[swap_indices, 'is_winner_team_one'] = False
+
+    swapped_df.to_csv(csv_path, index=False)
+
+
+def load_data(csv_path: str = 'data/stats_and_heroes.csv',
+              json_path: str = 'data/match_data.json') -> Tuple[pd.DataFrame, pd.Series]:
+    """Load data from CSV (generates from JSON if CSV doesn't exist)."""
+    import os
+    if not os.path.exists(csv_path):
+        generate_csv(json_path, csv_path)
+
+    df = pd.read_csv(csv_path)
+
+    y = df['is_winner_team_one'].astype(int)
+    X = df.drop(columns=['is_winner_team_one'])
+
     return X, y
 
 
 if __name__ == '__main__':
-    # Test loading from JSON
-    print("Testing data loading...")
     X, y = load_data()
-    print(f"Loaded {len(X)} samples with {len(X.columns)} features")
-    print(f"Target distribution: {y.value_counts().to_dict()}")
-    print(f"\nFeature columns:\n{X.columns.tolist()[:10]}...")

@@ -1,6 +1,6 @@
 """
 XGBoost classifier for Marvel Rivals win prediction.
-Includes training, evaluation, SHAP analysis, and hyperparameter tuning.
+Includes training, evaluation, and hyperparameter tuning.
 """
 import pandas as pd
 import numpy as np
@@ -12,9 +12,8 @@ from xgboost import XGBClassifier
 from sklearn.model_selection import cross_val_score, GridSearchCV, StratifiedKFold
 from sklearn.metrics import (accuracy_score, roc_auc_score, f1_score,
                              classification_report, confusion_matrix, roc_curve)
-import shap
 
-from dataprep import load_data, get_feature_sets, get_train_test_split
+from dataprep import load_data, get_feature_sets, get_train_test_split, get_feature_info
 
 
 def train(X_train: pd.DataFrame, y_train: pd.Series,
@@ -24,21 +23,7 @@ def train(X_train: pd.DataFrame, y_train: pd.Series,
           subsample: float = 0.8,
           colsample_bytree: float = 0.8,
           random_state: int = 42) -> XGBClassifier:
-    """Train XGBoost classifier.
-
-    Args:
-        X_train: Training features.
-        y_train: Training labels.
-        n_estimators: Number of boosting rounds.
-        max_depth: Maximum tree depth.
-        learning_rate: Step size shrinkage.
-        subsample: Subsample ratio of training instances.
-        colsample_bytree: Subsample ratio of columns.
-        random_state: Random seed for reproducibility.
-
-    Returns:
-        Trained XGBClassifier model.
-    """
+    """Train XGBoost classifier."""
     model = XGBClassifier(
         n_estimators=n_estimators,
         max_depth=max_depth,
@@ -56,16 +41,7 @@ def train(X_train: pd.DataFrame, y_train: pd.Series,
 def evaluate(model: XGBClassifier,
              X_test: pd.DataFrame,
              y_test: pd.Series) -> dict:
-    """Evaluate model performance.
-
-    Args:
-        model: Trained model.
-        X_test: Test features.
-        y_test: Test labels.
-
-    Returns:
-        Dictionary with evaluation metrics.
-    """
+    """Evaluate model performance."""
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]
 
@@ -78,61 +54,11 @@ def evaluate(model: XGBClassifier,
     }
 
 
-def get_shap_values(model: XGBClassifier,
-                    X_test: pd.DataFrame,
-                    max_samples: int = 1000) -> tuple:
-    """Generate SHAP values for model interpretability.
-
-    Args:
-        model: Trained model.
-        X_test: Test features.
-        max_samples: Maximum samples for SHAP calculation.
-
-    Returns:
-        Tuple of (shap_values, explainer, X_sample).
-    """
-    if len(X_test) > max_samples:
-        X_sample = X_test.sample(n=max_samples, random_state=42)
-    else:
-        X_sample = X_test
-
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X_sample)
-
-    return shap_values, explainer, X_sample
-
-
-def plot_shap_summary(shap_values, X_sample: pd.DataFrame,
-                      output_path: str = 'data/model_results/xgb_shap_summary.png'):
-    """Create and save SHAP summary plot.
-
-    Args:
-        shap_values: SHAP values from explainer.
-        X_sample: Sample features used for SHAP.
-        output_path: Path to save the plot.
-    """
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-    plt.figure(figsize=(12, 10))
-    shap.summary_plot(shap_values, X_sample, show=False, max_display=20)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"SHAP summary plot saved to {output_path}")
-
-
 def plot_feature_importance(model: XGBClassifier,
                             feature_names: list,
                             output_path: str = 'data/model_results/xgb_feature_importance.png',
                             top_n: int = 20):
-    """Plot feature importance from XGBoost.
-
-    Args:
-        model: Trained model.
-        feature_names: List of feature names.
-        output_path: Path to save the plot.
-        top_n: Number of top features to display.
-    """
+    """Plot feature importance from XGBoost."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     importances = model.feature_importances_
@@ -146,17 +72,11 @@ def plot_feature_importance(model: XGBClassifier,
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
-    print(f"Feature importance plot saved to {output_path}")
 
 
 def plot_confusion_matrix(cm: list,
                           output_path: str = 'data/model_results/xgb_confusion_matrix.png'):
-    """Plot confusion matrix.
-
-    Args:
-        cm: Confusion matrix as list.
-        output_path: Path to save the plot.
-    """
+    """Plot confusion matrix."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     cm = np.array(cm)
@@ -179,21 +99,13 @@ def plot_confusion_matrix(cm: list,
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
-    print(f"Confusion matrix saved to {output_path}")
 
 
 def plot_roc_curve(model: XGBClassifier,
                    X_test: pd.DataFrame,
                    y_test: pd.Series,
                    output_path: str = 'data/model_results/xgb_roc_curve.png'):
-    """Plot ROC curve.
-
-    Args:
-        model: Trained model.
-        X_test: Test features.
-        y_test: Test labels.
-        output_path: Path to save the plot.
-    """
+    """Plot ROC curve."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     y_prob = model.predict_proba(X_test)[:, 1]
@@ -210,22 +122,12 @@ def plot_roc_curve(model: XGBClassifier,
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
-    print(f"ROC curve saved to {output_path}")
 
 
 def tune_hyperparameters(X_train: pd.DataFrame,
                          y_train: pd.Series,
                          cv: int = 5) -> dict:
-    """Tune hyperparameters using GridSearchCV.
-
-    Args:
-        X_train: Training features.
-        y_train: Training labels.
-        cv: Number of cross-validation folds.
-
-    Returns:
-        Dictionary with best parameters and scores.
-    """
+    """Tune hyperparameters using GridSearchCV."""
     param_grid = {
         'n_estimators': [50, 100, 200],
         'max_depth': [3, 6, 9],
@@ -241,7 +143,7 @@ def tune_hyperparameters(X_train: pd.DataFrame,
     )
     grid_search = GridSearchCV(
         model, param_grid, cv=cv, scoring='accuracy',
-        n_jobs=-1, verbose=1
+        n_jobs=-1, verbose=0
     )
     grid_search.fit(X_train, y_train)
 
@@ -258,17 +160,7 @@ def tune_hyperparameters(X_train: pd.DataFrame,
 def cross_validate(X: pd.DataFrame, y: pd.Series,
                    n_splits: int = 5,
                    **model_params) -> dict:
-    """Perform cross-validation.
-
-    Args:
-        X: Features.
-        y: Labels.
-        n_splits: Number of CV folds.
-        **model_params: Parameters for the model.
-
-    Returns:
-        Dictionary with CV scores.
-    """
+    """Perform cross-validation."""
     model = XGBClassifier(
         random_state=42,
         eval_metric='logloss',
@@ -287,24 +179,11 @@ def cross_validate(X: pd.DataFrame, y: pd.Series,
 
 
 def run_feature_set_comparison(X: pd.DataFrame, y: pd.Series) -> dict:
-    """Run model on different feature sets and compare.
-
-    Args:
-        X: Full feature DataFrame.
-        y: Target Series.
-
-    Returns:
-        Dictionary with results for each feature set.
-    """
+    """Run model on different feature sets and compare."""
     results = {}
     feature_sets = get_feature_sets(pd.concat([X, y.rename('is_winner_team_one')], axis=1))
 
     for name, features in feature_sets.items():
-        print(f"\n{'='*50}")
-        print(f"Training on feature set: {name}")
-        print(f"Number of features: {len(features.columns)}")
-        print(f"{'='*50}")
-
         X_train, X_test, y_train, y_test = get_train_test_split(features, y)
 
         start_time = time.time()
@@ -317,90 +196,46 @@ def run_feature_set_comparison(X: pd.DataFrame, y: pd.Series) -> dict:
 
         results[name] = metrics
 
-        print(f"Accuracy: {metrics['accuracy']:.4f}")
-        print(f"AUC-ROC: {metrics['auc_roc']:.4f}")
-        print(f"F1 Score: {metrics['f1']:.4f}")
-        print(f"Train Time: {train_time:.2f}s")
-
     return results
 
 
-def main():
+def main(X=None, y=None):
     """Run full XGBoost pipeline."""
-    print("="*60)
-    print("XGBOOST - Marvel Rivals Win Prediction")
-    print("="*60)
+    if X is None:
+        X, y = load_data()
 
-    # Load data
-    print("\nLoading data...")
-    X, y = load_data()
-    print(f"Loaded {len(X)} samples with {len(X.columns)} features")
-    print(f"Target distribution: {y.value_counts().to_dict()}")
+    feature_info = get_feature_info(X)
 
-    # Split data
     X_train, X_test, y_train, y_test = get_train_test_split(X, y)
-    print(f"\nTrain set: {len(X_train)}, Test set: {len(X_test)}")
 
-    # Train model
-    print("\nTraining XGBoost...")
     start_time = time.time()
     model = train(X_train, y_train, n_estimators=100)
     train_time = time.time() - start_time
-    print(f"Training completed in {train_time:.2f}s")
 
-    # Evaluate
-    print("\nEvaluating model...")
     metrics = evaluate(model, X_test, y_test)
-    print(f"\nResults:")
-    print(f"  Accuracy: {metrics['accuracy']:.4f}")
-    print(f"  AUC-ROC:  {metrics['auc_roc']:.4f}")
-    print(f"  F1 Score: {metrics['f1']:.4f}")
+    print(f"  Accuracy: {metrics['accuracy']:.4f}, AUC: {metrics['auc_roc']:.4f}")
 
-    # Create output directory
     os.makedirs('data/model_results', exist_ok=True)
 
-    # Plot confusion matrix
     plot_confusion_matrix(metrics['confusion_matrix'])
-
-    # Plot ROC curve
     plot_roc_curve(model, X_test, y_test)
-
-    # Plot feature importance
     plot_feature_importance(model, X.columns.tolist())
 
-    # SHAP analysis
-    print("\nGenerating SHAP values...")
-    try:
-        shap_values, explainer, X_sample = get_shap_values(model, X_test)
-        plot_shap_summary(shap_values, X_sample)
-    except Exception as e:
-        print(f"SHAP analysis failed: {e}")
-
-    # Cross-validation
-    print("\nRunning cross-validation...")
     cv_results = cross_validate(X, y)
-    print(f"CV Accuracy: {cv_results['mean_score']:.4f} (+/- {cv_results['std_score']:.4f})")
+    print(f"  CV: {cv_results['mean_score']:.4f} (+/- {cv_results['std_score']:.4f})")
 
-    # Feature set comparison
-    print("\n" + "="*60)
-    print("FEATURE SET COMPARISON")
-    print("="*60)
-    feature_results = run_feature_set_comparison(X, y)
-
-    # Save results
     results = {
         'model': 'XGBoost',
+        'feature_info': feature_info,
         'metrics': metrics,
         'cv_results': cv_results,
-        'feature_set_comparison': feature_results,
         'train_time': train_time
     }
 
     with open('data/model_results/xgboost_results.json', 'w') as f:
         json.dump(results, f, indent=2, default=str)
-    print("\nResults saved to data/model_results/xgboost_results.json")
 
-    return results
+    return results, model, X_test, y_test
 
 
 if __name__ == '__main__':
