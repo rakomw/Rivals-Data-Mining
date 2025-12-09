@@ -1,12 +1,14 @@
 """
 Shared data preparation module for Marvel Rivals win prediction.
 Reuses parsing patterns from svm.py for consistency.
+Uses nn_model for advanced feature extraction.
 """
 import json
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from typing import List, Dict, Any, Tuple
+import nn_model
 
 # Hero ID to name mapping (43 heroes across 3 roles)
 HERO_MAP = {
@@ -270,39 +272,32 @@ def extract_hero_features(match_data: List[Dict[str, Any]]) -> pd.DataFrame:
     return df
 
 
-def load_prepared_data(csv_path: str = 'data/stats_and_heroes.csv') -> pd.DataFrame:
-    """Load pre-prepared data from CSV if available.
-
-    Args:
-        csv_path: Path to the prepared CSV file.
-
-    Returns:
-        DataFrame with all features.
-    """
-    return pd.read_csv(csv_path)
-
-
 def get_feature_sets(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     """Get different feature configurations for comparison.
 
     Args:
-        df: Full DataFrame with all features.
+        df: Full DataFrame with all features (full features + hero vectors).
 
     Returns:
         Dictionary with feature set names and corresponding DataFrames.
+        - team_stats: Basic stats columns only (~19 features)
+        - hero_composition: Hero vectors only (86 features)
+        - combined: team_stats + hero_composition (~105 features)
+        - full: All features including nn_model advanced features (~181 features)
     """
-    # Identify column groups
-    stat_cols = [col for col in df.columns if any(x in col for x in
-                 ['kills', 'deaths', 'assists', 'damage', 'final_hits', 'solo_kills', 'accuracy', 'duration'])]
+    # Basic stats (subset that matches original team_stats)
+    basic_stat_keywords = ['kills', 'deaths', 'assists', 'damage', 'final_hits',
+                           'solo_kills', 'accuracy', 'duration']
+    stat_cols = [col for col in df.columns if any(x in col.lower() for x in basic_stat_keywords)]
+
+    # Hero vectors (86 features)
     hero_cols = [col for col in df.columns if col.startswith('Team1_') or col.startswith('Team2_')]
 
-    target_col = 'is_winner_team_one'
-
     return {
-        'team_stats': df[stat_cols],
+        'team_stats': df[stat_cols] if stat_cols else df.iloc[:, :19],
         'hero_composition': df[hero_cols],
-        'combined': df[stat_cols + hero_cols],
-        'full': df.drop(columns=[target_col])
+        'combined': df[stat_cols + hero_cols] if stat_cols else df[hero_cols],
+        'full': df
     }
 
 
@@ -323,66 +318,19 @@ def get_train_test_split(X: pd.DataFrame, y: pd.Series,
     return train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=y)
 
 
-def prepare_data_from_json(json_path: str = 'data/match_data_clean.json') -> Tuple[pd.DataFrame, pd.Series]:
-    """Full pipeline to prepare data from raw JSON.
+def load_data(json_path: str = 'data/match_data_one_hero.json') -> Tuple[pd.DataFrame, pd.Series]:
+    """Load data directly from cleaned JSON file using nn_model for advanced features.
 
     Args:
-        json_path: Path to the match data JSON file.
+        json_path: Path to the cleaned JSON file.
 
     Returns:
         Tuple of (features DataFrame, target Series).
     """
-    print("Loading match data...")
+    print(f"Loading from {json_path}...")
     match_data = load_match_data(json_path)
 
-    print("Encoding hero compositions...")
-    hero_encoder = create_hero_encoder()
-    match_data = encode_team_heroes(match_data, hero_encoder)
-
-    print("Extracting team statistics...")
-    stats_df = extract_team_stats(match_data)
-
-    print("Extracting hero features...")
-    hero_df = extract_hero_features(match_data)
-
-    print("Combining features...")
-    full_df = stats_df.join(hero_df)
-
-    # Separate features and target
-    y = full_df['is_winner_team_one'].astype(int)
-    X = full_df.drop(columns=['is_winner_team_one'])
-
-    print(f"Prepared {len(X)} samples with {len(X.columns)} features")
-    return X, y
-
-
-def load_data(csv_path: str = 'data/stats_and_heroes.csv',
-              json_path: str = 'data/match_data_clean.json') -> Tuple[pd.DataFrame, pd.Series]:
-    """Load data from CSV if available, otherwise prepare from JSON.
-
-    Args:
-        csv_path: Path to the prepared CSV file.
-        json_path: Path to the raw JSON file.
-
-    Returns:
-        Tuple of (features DataFrame, target Series).
-    """
-    import os
-
-    if os.path.exists(csv_path):
-        print(f"Loading from {csv_path}...")
-        df = pd.read_csv(csv_path)
-        y = df['is_winner_team_one'].astype(int)
-        X = df.drop(columns=['is_winner_team_one'])
-        return X, y
-
-    # CSV doesn't exist, prepare from JSON
-    print(f"CSV not found. Preparing data from {json_path}...")
-    print("This may take a while for large datasets...")
-
-    match_data = load_match_data(json_path)
-
-    # Convert dict to list if needed (match_data.json uses dict format)
+    # Convert dict to list if needed
     if isinstance(match_data, dict):
         match_data = list(match_data.values())
 
@@ -392,18 +340,19 @@ def load_data(csv_path: str = 'data/stats_and_heroes.csv',
     hero_encoder = create_hero_encoder()
     match_data = encode_team_heroes(match_data, hero_encoder)
 
-    # Extract stats
-    stats_df = extract_team_stats(match_data)
+    # Extract hero features (86 columns)
     hero_df = extract_hero_features(match_data)
 
-    # Combine
+    # Use nn_model for advanced team features (same as svm.py)
+    print("Extracting advanced features via nn_model...")
+    team_stats, winners = nn_model.prepare_dataset(match_data)
+    stats_df = pd.DataFrame(team_stats)
+
+    # Combine: nn_model features + hero vectors
     full_df = stats_df.join(hero_df)
+    full_df['is_winner_team_one'] = winners.flatten().astype(int)
 
-    # Save to CSV for future use
-    print(f"Saving to {csv_path} for faster loading next time...")
-    full_df.to_csv(csv_path, index=False)
-
-    y = full_df['is_winner_team_one'].astype(int)
+    y = full_df['is_winner_team_one']
     X = full_df.drop(columns=['is_winner_team_one'])
 
     print(f"Prepared {len(X)} samples with {len(X.columns)} features")
@@ -411,13 +360,9 @@ def load_data(csv_path: str = 'data/stats_and_heroes.csv',
 
 
 if __name__ == '__main__':
-    # Test loading from CSV
-    print("Testing data loading from CSV...")
-    try:
-        X, y = load_data()
-        print(f"Loaded {len(X)} samples with {len(X.columns)} features")
-        print(f"Target distribution: {y.value_counts().to_dict()}")
-        print(f"\nFeature columns:\n{X.columns.tolist()[:10]}...")
-    except FileNotFoundError:
-        print("CSV not found, try preparing from JSON...")
-        X, y = prepare_data_from_json()
+    # Test loading from JSON
+    print("Testing data loading...")
+    X, y = load_data()
+    print(f"Loaded {len(X)} samples with {len(X.columns)} features")
+    print(f"Target distribution: {y.value_counts().to_dict()}")
+    print(f"\nFeature columns:\n{X.columns.tolist()[:10]}...")
