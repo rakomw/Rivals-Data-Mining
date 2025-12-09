@@ -189,6 +189,86 @@ Answer using the aggregate statistics above. Be concise (2-3 sentences):"""
     return response["message"]["content"]
 
 
+def predict_winner(row: dict, meta_docs: list[str]) -> str:
+    """Predict match winner based on stats using LLM."""
+    t1_heroes = get_heroes_from_row(row, "Team1")
+    t2_heroes = get_heroes_from_row(row, "Team2")
+
+    match_info = f"""Match Stats:
+Duration: {int(float(row['match_duration']))} seconds
+
+Team 1:
+- Heroes: {', '.join(t1_heroes) or 'Unknown'}
+- Kills: {row['team_one_kills']}, Deaths: {row['team_one_deaths']}
+- Damage: {row['team_one_damage']}, Healing: {row['team_one_damage_healed']}
+
+Team 2:
+- Heroes: {', '.join(t2_heroes) or 'Unknown'}
+- Kills: {row['team_two_kills']}, Deaths: {row['team_two_deaths']}
+- Damage: {row['team_two_damage']}, Healing: {row['team_two_damage_healed']}"""
+
+    meta_context = """DATASET PATTERNS FOR WIN PREDICTION:
+- Teams with higher kills usually win
+- Teams with lower deaths usually win
+- Teams with higher damage output usually win
+- K/D ratio is a strong predictor of winning"""
+
+    prompt = f"""{meta_context}
+
+{match_info}
+
+Based on these stats, which team won this match? Answer with ONLY "Team 1" or "Team 2", nothing else."""
+
+    response = ollama.chat(model=LLM_MODEL, messages=[{"role": "user", "content": prompt}])
+    return response["message"]["content"].strip()
+
+
+def test_winner_prediction() -> dict:
+    """Test RAG winner prediction on sample data."""
+    # Load ground truth
+    ground_truth = []
+    with open("data/sample_winners.csv", 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            ground_truth.append(int(row["is_winner_team_one"]))
+
+    # Load sample stats
+    sample_stats = []
+    with open("data/sample_stats.csv", 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            sample_stats.append(row)
+
+    _, meta_docs = load_documents(CSV_PATH)
+
+    correct = 0
+    total = len(sample_stats)
+    results = []
+
+    print(f"Testing RAG predictions on {total} samples...\n")
+
+    for i, (row, truth) in enumerate(zip(sample_stats, ground_truth)):
+        prediction = predict_winner(row, meta_docs)
+
+        pred_team1 = "team 1" in prediction.lower()
+        actual_team1 = truth == 1
+
+        is_correct = pred_team1 == actual_team1
+        if is_correct:
+            correct += 1
+
+        actual = "Team 1" if actual_team1 else "Team 2"
+        status = "✓" if is_correct else "✗"
+        print(f"Match {i+1}: Predicted={prediction}, Actual={actual}, {status}")
+        results.append({"match": i+1, "predicted": prediction, "actual": actual, "correct": is_correct})
+
+    accuracy = correct / total * 100
+    print(f"\n{'='*50}")
+    print(f"Results: {correct}/{total} correct ({accuracy:.1f}% accuracy)")
+
+    return {"correct": correct, "total": total, "accuracy": accuracy, "results": results}
+
+
 # Store meta_docs globally for CLI use
 _meta_docs = None
 
