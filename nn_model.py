@@ -756,6 +756,10 @@ class NeuralNetwork:
 
 def main():
     matches = load_cleaned_matches()
+
+    # Build typical per-hero stats for recommendation mode
+    build_hero_typical_stats(matches)
+
     X, y = prepare_dataset(matches)
 
     # First split: train+val vs test
@@ -774,12 +778,12 @@ def main():
     model.fit(
         X_train,
         y_train,
-        epochs=4000,
-        print_every=200,
-        batch_size=1024,
+        epochs=1000,       # reduced from 4000 for faster training
+        print_every=100,   # slightly more frequent logging
+        batch_size=2048,   # larger batches to reduce iterations per epoch
         X_val=X_val,
         y_val=y_val,
-        patience=10,
+        patience=5,        # stop sooner if validation loss stops improving
     )
 
     train_acc = np.mean(model.predict(X_train) == y_train)
@@ -798,6 +802,15 @@ def main():
         mean=mean, std=std
     )
     print("[INFO] Saved model parameters → nn_weights_and_stats.npz")
+
+    # Optional: enter interactive hero recommendation mode
+    try:
+        choice = input("\nEnter 'r' to enter hero recommendation mode, or press Enter to exit: ").strip().lower()
+    except EOFError:
+        choice = ""
+
+    if choice == "r":
+        interactive_recommendation(model, mean, std)
 
 
 # ============================================================
