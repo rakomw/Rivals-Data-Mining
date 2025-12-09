@@ -385,7 +385,7 @@ def main():
     print("AFTER:", sample_after)
 
     # Write cleaned results to a new file for inspection
-    out_path = "match_data_one_hero.json"
+    out_path = "data/match_data_one_hero.json"
     with open(out_path, "w") as f:
         json.dump(cleaned, f, indent=2)
 
