@@ -318,6 +318,20 @@ def clean_match(match: dict) -> dict:
             m["team_one"] = m["team_two"]
             m["team_two"] = temp
 
+            # Swap any known score fields so they stay aligned with teams
+            score_field_pairs = [
+                ("team_one_score", "team_two_score"),
+                ("team1_score", "team2_score"),
+                ("score1", "score2"),
+                ("team_one_rounds", "team_two_rounds"),
+            ]
+            for k1, k2 in score_field_pairs:
+                if k1 in m or k2 in m:
+                    v1 = m.get(k1)
+                    v2 = m.get(k2)
+                    m[k1] = v2
+                    m[k2] = v1
+
             # Flip winner (1 ↔ 2)
             m["winner"] = 2 if winner == 1 else 1
         else:
