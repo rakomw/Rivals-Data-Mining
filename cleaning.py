@@ -163,7 +163,7 @@ RANK_MAP = {
     "5100": "Eternity/One Above All"
 }
 
-HEROES_COUNTED = 1
+HEROES_COUNTED = 1  # Set to N to keep only top N heroes by time; 0 to keep all
 
 
 def _minutes_from_time_str(time_str: str) -> float:
@@ -187,7 +187,7 @@ def _minutes_from_time_str(time_str: str) -> float:
 
 
 # Helper to clean rank values to tier label
-def clean_rank_value(rank_value) -> str:
+def convert_rank_value(rank_value) -> str:
     """Map a raw numeric rank (e.g. '4,851') to a tier label using RANK_MAP.
     Floors to nearest 100. <3000 -> 3000. >=5000 -> 5100 (Eternity/One Above All).
     Returns the label string.
@@ -212,6 +212,18 @@ def clean_rank_value(rank_value) -> str:
         key = str(floored)
 
     return RANK_MAP.get(key, f"Unknown_{n}")
+
+def clean_rank_value(rank_value) -> int:
+    """Convert a raw numeric rank string (e.g. '4,851') to an integer value.
+    Returns the Elo integer.
+    """
+    if rank_value is None:
+        return -1
+    try:
+        n = int(str(rank_value).replace(',', '').strip())
+    except ValueError:
+        return -1
+    return n
 
 
 def clean_heroes_played(heroes_played, hero_map=HERO_MAP, choose_top=HEROES_COUNTED):
@@ -246,11 +258,13 @@ def clean_player(player: dict) -> dict:
     p = deepcopy(player)
     p["heroes_played"] = clean_heroes_played(player.get("heroes_played", []))
     raw_rank = player.get("rank")
-    p["rank"] = clean_rank_value(raw_rank)
+    p["rank"] = convert_rank_value(raw_rank)
+    #p["rank"] = clean_rank_value(raw_rank)
 
     p["damage"] = str(player.get("damage", "0")).replace(',', '')
     p["damage_taken"] = str(player.get("damage_taken", "0")).replace(',', '')
     p["damage_healed"] = str(player.get("damage_healed", "0")).replace(',', '')
+    p["accuracy"] = str(player.get("accuracy", "0")).replace('%', '')
     return p
 
 
@@ -334,8 +348,8 @@ def clean_all_matches(matches):
     return [m for m in cleaned if m is not None]
 
 def main():
-    # Load the raw JSON of matches (can be dict or list)
-    with open("match_data-3.json", "r") as f:
+    # Load the raw JSON list of matches
+    with open("data/match_data.json", "r") as f:
         matches = json.load(f)
 
     # Handle both dict- and list-shaped top-level JSON
@@ -371,7 +385,7 @@ def main():
     print("AFTER:", sample_after)
 
     # Write cleaned results to a new file for inspection
-    out_path = "match_data_one_hero.json"
+    out_path = "data/match_data_one_hero.json"
     with open(out_path, "w") as f:
         json.dump(cleaned, f, indent=2)
 
