@@ -163,7 +163,7 @@ RANK_MAP = {
     "5100": "Eternity/One Above All"
 }
 
-HEROES_COUNTED = 0  # Set to N to keep only top N heroes by time; 0 to keep all
+HEROES_COUNTED = 1
 
 
 def _minutes_from_time_str(time_str: str) -> float:
@@ -187,7 +187,7 @@ def _minutes_from_time_str(time_str: str) -> float:
 
 
 # Helper to clean rank values to tier label
-def convert_rank_value(rank_value) -> str:
+def clean_rank_value(rank_value) -> str:
     """Map a raw numeric rank (e.g. '4,851') to a tier label using RANK_MAP.
     Floors to nearest 100. <3000 -> 3000. >=5000 -> 5100 (Eternity/One Above All).
     Returns the label string.
@@ -212,18 +212,6 @@ def convert_rank_value(rank_value) -> str:
         key = str(floored)
 
     return RANK_MAP.get(key, f"Unknown_{n}")
-
-def clean_rank_value(rank_value) -> int:
-    """Convert a raw numeric rank string (e.g. '4,851') to an integer value.
-    Returns the Elo integer.
-    """
-    if rank_value is None:
-        return -1
-    try:
-        n = int(str(rank_value).replace(',', '').strip())
-    except ValueError:
-        return -1
-    return n
 
 
 def clean_heroes_played(heroes_played, hero_map=HERO_MAP, choose_top=HEROES_COUNTED):
@@ -258,13 +246,11 @@ def clean_player(player: dict) -> dict:
     p = deepcopy(player)
     p["heroes_played"] = clean_heroes_played(player.get("heroes_played", []))
     raw_rank = player.get("rank")
-    p["rank"] = convert_rank_value(raw_rank)
-    #p["rank"] = clean_rank_value(raw_rank)
+    p["rank"] = clean_rank_value(raw_rank)
 
     p["damage"] = str(player.get("damage", "0")).replace(',', '')
     p["damage_taken"] = str(player.get("damage_taken", "0")).replace(',', '')
     p["damage_healed"] = str(player.get("damage_healed", "0")).replace(',', '')
-    p["accuracy"] = str(player.get("accuracy", "0")).replace('%', '')
     return p
 
 
@@ -332,6 +318,20 @@ def clean_match(match: dict) -> dict:
             m["team_one"] = m["team_two"]
             m["team_two"] = temp
 
+            # Swap any known score fields so they stay aligned with teams
+            score_field_pairs = [
+                ("team_one_score", "team_two_score"),
+                ("team1_score", "team2_score"),
+                ("score1", "score2"),
+                ("team_one_rounds", "team_two_rounds"),
+            ]
+            for k1, k2 in score_field_pairs:
+                if k1 in m or k2 in m:
+                    v1 = m.get(k1)
+                    v2 = m.get(k2)
+                    m[k1] = v2
+                    m[k2] = v1
+
             # Flip winner (1 ↔ 2)
             m["winner"] = 2 if winner == 1 else 1
         else:
@@ -348,12 +348,21 @@ def clean_all_matches(matches):
     return [m for m in cleaned if m is not None]
 
 def main():
-    # Load the raw JSON list of matches
-    with open("data/match_data.json", "r") as f:
+    # Load the raw JSON of matches (can be dict or list)
+    with open("match_data-3.json", "r") as f:
         matches = json.load(f)
 
-    matches = list(matches.values())
-    print(len(matches))
+    # Handle both dict- and list-shaped top-level JSON
+    if isinstance(matches, dict):
+        matches = list(matches.values())
+    elif isinstance(matches, list):
+        # already a list of matches
+        pass
+    else:
+        raise TypeError(f"Unexpected top-level JSON type: {type(matches)}")
+
+    print("Loaded", len(matches), "raw matches")
+
     # Show a small BEFORE sample (first player's heroes in first match)
     try:
         sample_before = matches[0]["team_one"][0]["heroes_played"]
@@ -363,7 +372,7 @@ def main():
 
     # Clean all matches
     cleaned = clean_all_matches(matches)
-    print(len(cleaned))
+    print("Cleaned", len(cleaned), "matches")
 
     # Show a small AFTER sample to verify transformation
     try:
@@ -376,7 +385,7 @@ def main():
     print("AFTER:", sample_after)
 
     # Write cleaned results to a new file for inspection
-    out_path = "data/match_data_clean_all_heroes.json"
+    out_path = "match_data_one_hero.json"
     with open(out_path, "w") as f:
         json.dump(cleaned, f, indent=2)
 
