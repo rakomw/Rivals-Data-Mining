@@ -61,7 +61,6 @@ Once cleaned, the dataset allowed me to visualize behavior across roles and matc
 \subsection{Data Description}
 
 
-
 Describe the dataset(s) used in this project. Include information such as:
 \begin{itemize}
     \item Source of the data
@@ -78,8 +77,7 @@ The first stage of my contribution was building a cleaning pipeline capable of p
 	\item 	Filtering invalid players: Removing players with 0 minutes played, since they introduce noise into per-minute calculations.
 	\item	Enforcing team size: Some matches listed more than 6 players on a team; I kept only the 6 highest-minute players.
 	\item 	Role mapping: Every hero was mapped into Tank, DPS, or Support, allowing role-share features.
-	\item 	Randomized flipping: With 50% probability, I flipped the entire match—team_one ↔ team_two, scores, and winner.
-This prevents the model from learning position-based shortcuts.
+	\item 	Randomized flipping: With 50\% probability, I flipped the entire match—team_one $\Leftrightarrow$ team_two, scores, and winner. This prevents the model from learning position-based shortcuts.
 	\item 	Leakage prevention: Final score and round count were explicitly excluded from model input. 
 \end{itemize}
 
