@@ -36,7 +36,7 @@
 \maketitle
 
 \begin{abstract}
-This project investigates predicting match outcomes in Marvel Rivals using machine learning. My contribution focuses on transforming raw match logs into a structured dataset, engineering team-level and player-level features, and training a neural network to predict match winners. Using over 310,000 cleaned matches, the model captures nonlinear relationships such as role composition, hero synergy, and performance consistency. The trained model achieves over 91\% accuracy across training, validation, and test sets. I further extended the model into a hero recommendation system that evaluates draft decisions by simulating win probabilities for potential hero picks. -KD
+This project investigates predicting match outcomes in Marvel Rivals using machine learning. My contribution focuses on transforming raw match logs into a structured dataset, engineering team-level and player-level features, and training a neural network to predict match winners. Using over 310,000 cleaned matches, the model captures nonlinear relationships such as role composition, hero synergy, and performance consistency. The trained model achieves over 91\% accuracy across training, validation, and test sets. I further extended the model into a hero recommendation system that evaluates draft decisions by simulating win probabilities for potential hero picks. [why is esports big] -KD
 \end{abstract}
 
 % ============================================================================
@@ -286,13 +286,9 @@ For the hero recommendation system, qualitative testing showed that familiar met
     \end{tabular}
 \end{table}
 
-% ----------------------------------------
-% Behrouz Barati B's Results (Tree-based + RAG)
-% ----------------------------------------
-
 \begin{table}[H]
     \centering
-    \caption{Tree-Based Model Comparison (330,914 matches, 80/20 split)}
+    \caption{Model Comparison (330,914 matches)}
     \label{tab:tree_results}
     \begin{tabular}{lcccc}
         \toprule
@@ -383,10 +379,6 @@ Discuss potential improvements and future directions:
 % ============================================================================
 \section*{References}
 % ============================================================================
-
-% If using a .bib file, uncomment the following two lines:
-% \bibliographystyle{plainnat}
-% \bibliography{references}
 
 % Manual references:
 \begin{thebibliography}{9}
