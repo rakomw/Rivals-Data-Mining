@@ -41,7 +41,7 @@ This project investigates predicting match outcomes in Marvel Rivals using machi
 
 % ============================================================================
 \section{Introduction}
-Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history. We sought to develop models that could accurately determine the outcome of a match based on these statistics
+Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history. We sought to develop models that could accurately determine the outcome of a match based on these statistics -KD
 
 % ============================================================================
 
@@ -218,26 +218,38 @@ Describe additional methods as needed.
 \section{Evaluation}
 % ============================================================================
 
-Compare the methods you used and present your results.
+This section evaluates the performance of the neural network model and the hero recommendation system.
 
 \subsection{Evaluation Metrics}
-Describe the metrics used to evaluate your models (e.g., accuracy, precision, recall, F1-score, RMSE, etc.).
+
+The primary metric used to evaluate the neural network was \textbf{accuracy}, defined as the proportion of matches for which the predicted winner matched the true winner. Accuracy was chosen because the classification task is binary and balanced after applying randomized team flipping during data cleaning.
+
+In addition to accuracy, qualitative evaluation was performed for the hero recommendation system by observing whether the predicted win probabilities aligned with known competitive patterns such as role balance, synergy, and meta compositions.
 
 \subsection{Results}
-Present your experimental results.
 
-% Example table
+The trained neural network achieved the following performance:
+\begin{itemize}
+    \item \textbf{Training Accuracy:} 0.915
+    \item \textbf{Validation Accuracy:} 0.913
+    \item \textbf{Test Accuracy:} 0.915
+\end{itemize}
+
+The close alignment between training, validation, and test accuracy indicates that the model generalizes well and does not overfit the dataset. Two factors were particularly important in achieving this stability: randomized team flipping, which removed positional bias, and the exclusion of final score information from the input features, which prevented target leakage.
+
+For the hero recommendation system, qualitative testing showed that familiar meta compositions consistently resulted in higher predicted win probabilities, while role-imbalanced or anti-synergistic drafts produced lower probabilities. These observations matched intuitive expectations from competitive play and suggest that the neural network learned structural relationships such as role composition and synergy rather than relying solely on surface-level statistics. (KD)
+
 \begin{table}[H]
     \centering
-    \caption{Comparison of Methods}
+    \caption{Model Performance Summary}
     \label{tab:results}
-    \begin{tabular}{lccc}
+    \begin{tabular}{lc}
         \toprule
-        Method & Accuracy & Precision & Recall \\
+        \textbf{Model} & \textbf{Accuracy} \\
         \midrule
-        Neural Network & 91.5 & 0.00 & 0.00 \\
-        Method 2 & 0.00 & 0.00 & 0.00 \\
-        Method 3 & 0.00 & 0.00 & 0.00 \\
+        Neural Network & 0.915 \\
+        SVM & 0.86 \\
+        Random Forrest & 0.90 \\
         \bottomrule
     \end{tabular}
 \end{table}
