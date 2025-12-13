@@ -12,6 +12,8 @@
 \usepackage{float}
 \usepackage{caption}
 \usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
 
 % Single spacing
 \usepackage{setspace}
@@ -43,24 +45,13 @@ Marvel Rivals is a third-person hero shooter where players battle in teams of 6 
 % Describe the problem
 \subsection{Problem Description}
   
-The goal of my contribution was to predict the winner of a Marvel Rivals match using team composition, player performance metrics, and structural game features. Rather than relying solely on raw damage or kill counts, the approach focuses on composition, synergy, consistency, and tempo—similar to how team strength is evaluated in competitive play. My work centered on transforming raw, inconsistent JSON match logs into a structured dataset suitable for modeling, and extending the resulting model into a hero recommendation system to support draft decision-making.
+This project addresses the problem of predicting outcomes in competitive esports matches, where results depend on team composition, player impact, and in-game efficiency rather than a single statistic. To study this, a large collection of Marvel Rivals match logs was cleaned and standardized, resolving inconsistencies such as mixed time formats, zero-minute players, variable team sizes, and mid-match hero swaps.
 
-The dataset consists of over 310{,}000 cleaned matches, each containing two teams whose players may swap heroes and roles mid-match. Significant preprocessing was required due to inconsistent time formats, zero-minute players, and irregular team sizes. A key component of the cleaning pipeline was randomized team flipping: because Team One appears to win more frequently due to logging structure, matches were flipped with 50\% probability to remove positional bias and force the model to learn outcome-driving features rather than shortcuts.
-
-After cleaning, exploratory analysis of role usage and per-minute performance informed the feature engineering process and directly influenced both the neural network design and the hero recommendation system.
+After cleaning, match outcome prediction was formulated as a binary classification task. Engineered features capture team-level performance, role balance, and player impact, allowing a neural network to learn nonlinear relationships that answer key questions such as which team is likely to win and how composition and individual contribution influence match results.
 
 % Describe the data
 \subsection{Data Description}
 We obtained a collection of match data by crawling the website rivalsmeta.com, which collates statistics from official trackers integrated into the game's various platforms (PC, PlayStation, and Xbox). Our crawler is written in Python, with the Playwright library being used to navigate the site and interact with dynamic page elements, while the BeautifulSoup library was used to parse the HTML into an easily-navigable DOM tree from which we could extract the relevant data. The crawler followed a breadth-first approach to locate new pages to scrape–it began with a few hand-selected public profiles of players near the top of the leaderboards, from which it pulled the data for every match they had played during the target time period. The data for each of these matches includes the identifiers of the player's teammates and opponents, all of which were added to a queue to be processed in the same manner as the original profiles. The process was repeated, while tracking which players' profiles had already been visited, eventually yielding data on 330,914 matches, including 458,565 unique players. Each match contains two teams, with player-level statistics such as damage, healing, deaths, hero usage, and rank. Players may swap heroes mid-match, resulting in variable hero counts per player. The target variable is a binary label indicating whether Team One or Team Two won the match. 
-
-
-Describe the dataset(s) used in this project. Include information such as:
-\begin{itemize}
-    \item Source of the data
-    \item Number of samples and features
-    \item Types of variables (categorical, numerical, etc.)
-    \item Target variable (if applicable)
-\end{itemize}
 
 % Data preparation
 \subsection{Data Preparation}
@@ -75,23 +66,7 @@ This prevents the model from learning position-based shortcuts.
 	\item 	Leakage prevention: Final score and round count were explicitly excluded from model input. 
 \end{itemize}
 
-By the end, the cleaned dataset captured a realistic competitive match environment with consistent structures across all matches. -KD
-
-
-Describe the data preprocessing steps:
-\begin{itemize}
-    \item Handling missing values
-    \item Feature encoding
-    \item Normalization/Standardization
-    \item Feature selection or engineering
-    \item Train/test split strategy
-\end{itemize}
-
-% Data visualization
-\subsection{Data Visualization}
-Include visualizations that help understand the data distribution and patterns.
-
-After cleaning, I explored distributions of role minutes, per-minute efficiency, and hero usage. These visualizations helped confirm that Tanks, DPS, and Supports exhibit distinct performance patterns, and guided the feature engineering choices used in the neural network.
+By the end, the cleaned dataset captured a realistic competitive match environment with consistent structures across all matches. 
 
 % Example figure placeholder
 % \begin{figure}[H]
@@ -110,94 +85,103 @@ Prior work has shown that match outcomes can be predicted accurately using engin
 
 Other studies have demonstrated that team composition alone, independent of in-game events, has a measurable impact on win probability~\cite{ref6}. While those approaches rely on search-based optimization, I adapt the core idea by using a trained neural network to dynamically evaluate and rank candidate hero picks during the draft phase.
 \paragraph{Robert Moore}
-Discuss another relevant paper or body of work. Explain the methodology used, the results obtained, and how it relates to your project.
+I developed the web crawler independently based on my own research into what Python libraries would be most suitable for the task; in surveying the literature, I later found that the use of BeautifulSoup to parse HTML is fairly common \cite{scraping1} \cite{scraping2}, but I could not find any other instances of using Playwright for browser automation. The idea of developing player-specific models was inspired by PandaSkill \cite{pandaskill}, a framework used to rate players in the similarly team-based game League of Legends on the basis of individual performance. 
 
-\paragraph{}
+\paragraph{Behrouz Barati}
 Gradient boosting and ensemble tree methods have demonstrated strong performance in esports match outcome prediction. Xiao et al.~\cite{xiao2021wpgbdt} proposed WP-GBDT, achieving 89.97\% AUC using gradient boosting decision trees with feature engineering on video game logs at IEEE BigData 2021. Akhmedov and Phan~\cite{akhmedov2021dota2} applied machine learning to Dota 2 match prediction, comparing Linear Regression (82\%), Neural Networks (88\%), and LSTM (93\%) using real-time game state data. Gourdeau and Archambault~\cite{gourdeau2020hero} developed discriminative neural networks for hero selection in MOBA games, demonstrating that team composition significantly impacts match outcomes. Our work extends these approaches by applying Random Forest, XGBoost, and CatBoost to Marvel Rivals and introduces a Retrieval-Augmented Generation (RAG) pipeline for natural language exploration of match statistics.
 
 % ============================================================================
 \section{Methods}
 % ============================================================================
 
-Describe the methods and algorithms used to solve the problem.
+\subsection{Method 1: Neural Network (KD)}
 
-\subsection{Method 1: Neural Network(KD)}
+\paragraph{Cleaning Pipeline.}
+Over 310{,}000 Marvel Rivals matches were prepared through a custom cleaning pipeline.
+Raw JSON logs were inconsistent and required preprocessing before modeling.
+Key steps included time normalization, removal of zero-minute players,
+enforcing six-player team limits, hero-to-role mapping (Tank/DPS/Support),
+randomized team flipping with 50\% probability to remove positional bias,
+and explicit exclusion of score-related fields to prevent target leakage.
+The resulting dataset provides a consistent competitive structure across matches.
 
-\subsection{Cleaning Pipeline}
+\paragraph{Feature Engineering.}
+Team strength and player impact were represented using aggregated and normalized
+features, including raw totals (damage, healing, deaths, kills, assists, final hits),
+per-minute efficiency metrics (DPM, HPM, taken per minute),
+role composition shares, hero swap and consistency measures, and known team-up synergies.
+A deaths-aware carry score,
+$\frac{\text{damage} + \text{taken} + \text{healed} + \text{final hits}}{\text{deaths} + 1}$,
+was used to identify high-impact players regardless of role.
+Statistical summaries (mean, max, standard deviation) were computed across players
+to capture performance distribution within each team.
 
-The first stage of my contribution was building a cleaning pipeline capable of preparing over 310{,}000 matches for modeling. The raw Marvel Rivals JSON data was inconsistent and not directly usable, so several preprocessing steps were required.
+\paragraph{Neural Network Model.}
+The predictive model is a two-hidden-layer neural network implemented in NumPy,
+with approximately 94 input features, two hidden layers of 16 neurons each using
+Leaky ReLU activations, and a sigmoid output producing Team One win probability.
+This architecture balances expressive power with training efficiency and was chosen
+to model nonlinear interactions such as role balance, hero synergy, and carry concentration.
+Training used binary cross-entropy loss, mini-batch gradient descent (batch size 2048),
+a learning rate of 0.001, feature standardization based on the training split only,
+and early stopping with a patience of five epochs.
 
-The major steps in the cleaning pipeline were as follows:
-\begin{itemize}
-    \item \textbf{Time normalization:} All time formats (e.g., ``8.5m'' or ``45s'') were converted into consistent numeric minute values.
-    \item \textbf{Filtering invalid players:} Players with zero minutes played were removed, as they introduce noise into per-minute performance calculations.
-    \item \textbf{Enforcing team size:} Some matches listed more than six players on a team; in these cases, only the six players with the highest total minutes were retained.
-    \item \textbf{Role mapping:} Each hero was mapped to one of three roles---Tank, DPS, or Support---enabling role-based feature engineering.
-    \item \textbf{Randomized team flipping:} With 50\% probability, the entire match was flipped (team\_one $\leftrightarrow$ team\_two), including scores and winner labels. This prevents the model from learning positional shortcuts such as ``Team One wins more often.''
-    \item \textbf{Leakage prevention:} Final scores and round counts were explicitly excluded from the neural network input features.
-\end{itemize}
+\paragraph{Hero Recommendation System.}
+The trained neural network was extended into a hero recommendation system
+to support draft decision-making.
+Users input friendly and enemy heroes, after which typical per-hero statistics
+derived from the dataset are used to simulate adding each candidate hero
+to the friendly team.
+Each simulated composition is evaluated by the neural network, and the system
+returns the top recommended Tank, DPS, and Support heroes ranked by predicted
+win probability.
 
-After these steps, the cleaned dataset represented a realistic competitive environment with consistent structure across all matches.
+\begin{figure}[H]
+    \centering
+    \resizebox{0.75\textwidth}{!}{%
+    \begin{tikzpicture}[
+        node distance=0.6cm,
+        box/.style={rectangle, draw, rounded corners, minimum width=3.5cm, minimum height=0.6cm, align=center, font=\small},
+        inputbox/.style={box, fill=blue!15},
+        processbox/.style={box, fill=orange!20},
+        outputbox/.style={box, fill=green!15, minimum width=2.8cm},
+        herobox/.style={rectangle, draw, rounded corners, minimum width=2.8cm, align=center, font=\scriptsize, fill=gray!10},
+        arrow/.style={-{Stealth[length=2mm]}, thick}
+    ]
 
-\subsection{Feature Engineering}
+    % Input Section
+    \node[inputbox] (friendly) {Friendly: Hela, Namor, Luna Snow, Invisible Woman, Magneto};
+    \node[inputbox, below=of friendly] (enemy) {Enemy: Hela, Namor, Luna Snow, Invisible Woman, Magneto, Doctor Strange};
 
-The neural network relies heavily on engineered features that represent team strength, synergy, tempo, and performance distribution. The engineered feature set includes:
+    % Processing Section
+    \node[processbox, below=0.8cm of enemy] (simulate) {Simulate Adding 6th Hero Pick};
+    \node[processbox, below=of simulate] (encode) {Encode Features (94 dimensions)};
+    \node[processbox, below=of encode] (nn) {Neural Network Evaluation};
 
-\begin{itemize}
-    \item \textbf{Raw team totals:} Damage dealt, healing, damage taken, kills, assists, final hits, and deaths.
-    \item \textbf{Per-minute efficiency metrics:} Damage per minute (DPM), healing per minute (HPM), and damage taken per minute, which normalize performance by playtime.
-    \item \textbf{Carry score:}
-    \[
-    \text{Carry Score} = \frac{\text{damage} + \text{taken} + \text{healed} + \text{final hits}}{\text{deaths} + 1}
-    \]
-    This metric captures high-impact, low-death players and helps identify which team has a dominant ``carry,'' regardless of role.
-    \item \textbf{Role composition:} Total and percentage minutes played by Tanks, DPS, and Supports.
-    \item \textbf{Player consistency features:} Hero swap count, number of heroes played, and main-hero usage share.
-    \item \textbf{Synergy and team-up features:} Counts of known hero team-up combinations (e.g., Invisible Woman and Human Torch) to capture composition synergy.
-    \item \textbf{Statistical distributions:} Mean, maximum, and standard deviation values for deaths, DPM, and carry scores across players on each team.
-\end{itemize}
+    % Output Section - Role headers
+    \node[outputbox, below=0.8cm of nn, xshift=-3.2cm] (tank) {\textbf{Tank}};
+    \node[outputbox, below=0.8cm of nn] (dps) {\textbf{DPS}};
+    \node[outputbox, below=0.8cm of nn, xshift=3.2cm] (support) {\textbf{Support}};
 
-Together, these features create a detailed statistical fingerprint of each team, capturing both raw performance and compositional structure.
+    % Recommendation results
+    \node[herobox, below=0.2cm of tank] (tankres) {Groot: 0.523\\Venom: 0.483\\Hulk: 0.476};
+    \node[herobox, below=0.2cm of dps] (dpsres) {Daredevil: 0.421\\W. Soldier: 0.415\\Hawkeye: 0.409};
+    \node[herobox, below=0.2cm of support] (suppres) {Ultron: 0.360\\Jeff: 0.333\\Mantis: 0.321};
 
-\subsection{Neural Network Model}
+    % Arrows
+    \draw[arrow] (friendly) -- (enemy);
+    \draw[arrow] (enemy) -- (simulate);
+    \draw[arrow] (simulate) -- (encode);
+    \draw[arrow] (encode) -- (nn);
+    \draw[arrow] (nn) -- (tank);
+    \draw[arrow] (nn) -- (dps);
+    \draw[arrow] (nn) -- (support);
 
-The predictive model is a two-hidden-layer neural network implemented entirely in NumPy. The architecture consists of:
-\begin{itemize}
-    \item An input layer with approximately 94 engineered features.
-    \item A first hidden layer with 16 neurons using the Leaky ReLU activation function.
-    \item A second hidden layer with 16 neurons using the Leaky ReLU activation function.
-    \item An output layer with a sigmoid activation function that produces the probability of Team One winning the match.
-\end{itemize}
-
-This architecture balances expressive power with computational efficiency. The data exhibits strong nonlinear relationships---such as role synergy, hero swapping behavior, and carry distributions---but deeper or wider networks increased training time without improving generalization. Leaky ReLU was chosen to maintain stable gradients even when feature values are sparse or negative.
-
-The training configuration was as follows:
-\begin{itemize}
-    \item \textbf{Loss function:} Binary Cross-Entropy
-    \item \textbf{Optimization:} Mini-batch Gradient Descent
-    \item \textbf{Batch size:} 2048
-    \item \textbf{Learning rate:} 0.001
-    \item \textbf{Early stopping patience:} 5 epochs
-    \item \textbf{Standardization:} Feature means and standard deviations computed using the training split only
-\end{itemize}
-
-This configuration resulted in stable and efficient convergence on the full dataset.
-
-\subsection{Hero Recommendation System}
-
-After training the neural network, I extended the project with a hero recommendation system designed to simulate draft decision-making.
-
-The recommendation process operates as follows:
-\begin{enumerate}
-    \item The user inputs up to five friendly heroes and up to six enemy heroes.
-    \item Typical per-hero statistics are generated using aggregate statistics computed from the dataset.
-    \item For each hero not yet selected, the system simulates adding that hero to the friendly team as the sixth pick.
-    \item Each simulated team composition is encoded into the same feature vector used during training.
-    \item The trained neural network evaluates the predicted win probability for each candidate composition.
-    \item The system returns the top three recommended heroes for each role: Tank, DPS, and Support.
-\end{enumerate}
-
-This recommendation system transforms the neural network from a passive predictor into an active decision-support tool, allowing users to explore how different hero picks influence match outcomes.
+    \end{tikzpicture}%
+    }
+    \caption{Hero Recommendation System workflow. Given team compositions, the system simulates each candidate hero, encodes features, and returns top 3 recommendations per role with win probabilities.}
+    \label{fig:hero_recommendation}
+\end{figure}
 
 \subsection{SVM}
 A Support Vector Machine (SVM) is a supervised machine learning method for classification which finds the hyperplane that divides the data into target classes while maximizing the margin from the boundary plane to the nearest points. As many datasets are not linearly separable in their original feature space, it is common practice to use a kernel function which implicitly maps the data into a higher dimension space in which the boundary is a hyperplane. The Radial Basis Function (RBF) kernel is a popular choice, mapping the data into an infinite-dimensional space and frequently enabling linear separation of the data. We began with this approach, but as we gathered more data the time to fit the model began to grow impractical (over 1 hour with 100,000 samples, implying a full day of training to fit to the final dataset). Therefore, we used the RBFSampler kernel approximation implemented in scikit-learn, which approximates a RBF feature map using random Fourier features as described in \cite{randomkitchensinks}, and fit a linear SVM classifier to the transformed data. This achieved nearly identical results as the fully kernelized approach on smaller subsets of our data, but was much more computationally efficient, being able to fit to the final dataset of over 300k items in roughly 1 minute. The hyperparameters $\gamma$ and n\_components of the RBF sampler were tuned via cross-validation, with peak performance being found with $\gamma$ set to scale inversely to the number of features and the calculated variance in the original data, and $n\_components = 48$.
@@ -319,7 +303,7 @@ The RAG system successfully answers natural language queries about match statist
 % ============================================================================
 
 \subsection{Summary}
-Summarize the key findings of your project. Restate the problem, the methods used, and the main results.
+The neural network was our best-performing model, and future work would focus on tuning that model to achieve even higher performance. One area in which other algorithms outperformed it is in predicting outcomes based solely on the heroes chosen for each team, where CatBoost shined, so a Hero Recommender based on that model could be more effective. The models making predictions based on individual player stats underperformed, but this may be inherent to the dataset. 
 
 \subsection{Future Work}
 Several directions could extend this research:
@@ -349,6 +333,15 @@ Rahimi, Ali and Recht, Benjamin (2008) \textit{Weighted sums of random kitchen s
 
 \bibitem{ref6}
 L. M. Costa, A. C. C. Souza and F. C. M. Souza, "An Approach for Team Composition in League of Legends using Genetic Algorithm," 2019 18th Brazilian Symposium on Computer Games and Digital Entertainment (SBGames), Rio de Janeiro, Brazil, 2019, pp. 52-61, doi: 10.1109/SBGames.2019.00018.
+
+\bibitem{scraping1}
+A. Abodayeh, R. Hejazi, W. Najjar, L. Shihadeh and R. Latif, \textit{Web Scraping for Data Analytics: A BeautifulSoup Implementation}, 2023 Sixth International Conference of Women in Data Science at Prince Sultan University (WiDS PSU), Riyadh, Saudi Arabia, 2023, pp. 65-69, doi: 10.1109/WiDS-PSU57071.2023.00025.
+
+\bibitem{scraping2}
+G. Sharma, \textit{Web Crawling and Scraping: A Survey}, 2024 International Conference on Healthcare Innovations, Software and Engineering Technologies (HISET), Karad, India, 2024, pp. 190-192, doi: 10.1109/HISET61796.2024.00063.
+
+\bibitem{pandaskill}
+M. D. Bois, F. Parmentier, R. Puget, M. Tanti and J. Peltier, \textit{PandaSkill - Player Performance and Skill Rating in Esports: Application to League of Legends}, in IEEE Transactions on Games, doi: 10.1109/TG.2025.3581070.
 
 \end{thebibliography}
 % ============================================================================
@@ -394,6 +387,17 @@ Table~\ref{tab:cv_results} presents the 5-fold stratified cross-validation resul
         \caption{XGBoost feature importance ranking.}
         \label{fig:feature_importance}
     \end{minipage}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.32\textwidth]{figures/rf_confusion_matrix.png}
+    \hfill
+    \includegraphics[width=0.32\textwidth]{figures/xgb_confusion_matrix.png}
+    \hfill
+    \includegraphics[width=0.32\textwidth]{figures/catboost_confusion_matrix.png}
+    \caption{Confusion matrices for tree-based models. Left: Random Forest. Center: XGBoost. Right: CatBoost. All models show balanced performance across both classes.}
+    \label{fig:confusion_matrices}
 \end{figure}
 
 \end{document}
