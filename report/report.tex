@@ -23,8 +23,8 @@
     Author 1 \\
     \texttt{author1@email.com}
     \and
-    Author 2 \\
-    \texttt{author2@email.com}
+    Ken Douglas \\
+    \texttt{kenneth.douglas.994@my.csun.edu}
     \and
     Author 3 \\
     \texttt{author3@email.com}
@@ -36,19 +36,33 @@
 \maketitle
 
 \begin{abstract}
-Brief summary of your project, including the problem addressed, methods used, and key findings.
+This project investigates predicting match outcomes in Marvel Rivals using machine learning. My contribution focuses on transforming raw match logs into a structured dataset, engineering team-level and player-level features, and training a neural network to predict match winners. Using over 310,000 cleaned matches, the model captures nonlinear relationships such as role composition, hero synergy, and performance consistency. The trained model achieves over 91\% accuracy across training, validation, and test sets. I further extended the model into a hero recommendation system that evaluates draft decisions by simulating win probabilities for potential hero picks. -KD
 \end{abstract}
 
 % ============================================================================
 \section{Introduction}
+Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history.
+
 % ============================================================================
 
 % Describe the problem
 \subsection{Problem Description}
-Describe the problem you are trying to solve. What is the motivation behind this work? Why is it important?
+  
+The goal of my portion of the project was to predict the winner of a Marvel Rivals match using team compositions, player performance measures, and structural game features. In the data, it reminded me of how coaches look at team strength—not just through raw kills or damage, but through composition, synergy, consistency, and tempo. My work focused on turning messy, inconsistent JSON data into a form that a predictive model could actually understand, and then extending that model into a hero recommendation system that helps guide draft decision-making.
+
+The dataset consisted of over 310,000 cleaned matches. Each match included two teams, each with players who could swap heroes and roles mid-match. The raw JSON was not directly usable; time formats varied (“30s”, “8.5m”), some players had 0 minutes played, and certain teams had more than six listed players. A major part of my role was designing the cleaning pipeline that resolved these inconsistencies.
+
+A central idea in the cleaning process was randomized team flipping. In the raw data, Team One wins more frequently simply because of how the logs were structured. If left untreated, the neural network would learn that “Team One wins” instead of learning why they win. To counter this, I flipped teams, scores, and labels with 50\% probability. This forced the model to rely only on actual features, not positional bias.
+
+Once cleaned, the dataset allowed me to visualize behavior across roles and match dynamics—from average Tank role minutes to per-minute efficiency distributions. These insights shaped the feature engineering for the neural network and guided the eventual hero recommendation system. -KD
+
 
 % Describe the data
 \subsection{Data Description}
+We obtained a collection of match data by crawling the website rivalsmeta.com, which collates statistics from official trackers integrated into the game's various platforms (PC, PlayStation, and Xbox). Our crawler is written in Python, with the Playwright library being used to navigate the site and interact with dynamic page elements, while the BeautifulSoup library was used to parse the HTML into an easily-navigable DOM tree from which we could extract the relevant data. The crawler followed a breadth-first approach to locate new pages to scrape–it began with a few hand-selected public profiles of players near the top of the leaderboards, from which it pulled the data for every match they had played during the target time period. The data for each of these matches includes the identifiers of the player's teammates and opponents, all of which were added to a queue to be processed in the same manner as the original profiles. The process was repeated, while tracking which players' profiles had already been visited, eventually yielding data on 330,914 matches including 458,565 unique players. 
+The dataset consists of over 310,000 Marvel Rivals matches collected from competitive play logs. Each match contains two teams, with player-level statistics such as damage, healing, deaths, hero usage, and rank. Players may swap heroes mid-match, resulting in variable hero counts per player. The target variable is a binary label indicating whether Team One or Team Two won the match. -KD
+
+
 Describe the dataset(s) used in this project. Include information such as:
 \begin{itemize}
     \item Source of the data
@@ -59,6 +73,20 @@ Describe the dataset(s) used in this project. Include information such as:
 
 % Data preparation
 \subsection{Data Preparation}
+The first stage of my contribution was building a cleaning pipeline capable of preparing 310,000 matches for modeling. The major steps included:
+\begin{itemize}
+	\item 	Time normalization: Converting formats like “8.5m” or “45s” into consistent numeric minutes.
+	\item 	Filtering invalid players: Removing players with 0 minutes played, since they introduce noise into per-minute calculations.
+	\item	Enforcing team size: Some matches listed more than 6 players on a team; I kept only the 6 highest-minute players.
+	\item 	Role mapping: Every hero was mapped into Tank, DPS, or Support, allowing role-share features.
+	\item 	Randomized flipping: With 50% probability, I flipped the entire match—team_one ↔ team_two, scores, and winner.
+This prevents the model from learning position-based shortcuts.
+	\item 	Leakage prevention: Final score and round count were explicitly excluded from model input. 
+\end{itemize}
+
+By the end, the cleaned dataset captured a realistic competitive match environment with consistent structures across all matches. -KD
+
+
 Describe the data preprocessing steps:
 \begin{itemize}
     \item Handling missing values
@@ -71,6 +99,8 @@ Describe the data preprocessing steps:
 % Data visualization
 \subsection{Data Visualization}
 Include visualizations that help understand the data distribution and patterns.
+
+After cleaning, I explored distributions of role minutes, per-minute efficiency, and hero usage. These visualizations helped confirm that Tanks, DPS, and Supports exhibit distinct performance patterns, and guided the feature engineering choices used in the neural network. -KD
 
 % Example figure placeholder
 % \begin{figure}[H]
@@ -86,7 +116,7 @@ Include visualizations that help understand the data distribution and patterns.
 
 % Each group member should write one paragraph and include their name
 \paragraph{Author 1:}
-Discuss relevant papers and prior work related to this problem. Explain the approaches used in previous research, their strengths and limitations, and how your work builds upon or differs from them.
+Unlike prior work focused on League of Legends, this project applies similar principles to Marvel Rivals and extends outcome prediction into a live hero recommendation system.
 
 \paragraph{Author 2:}
 Discuss another relevant paper or body of work. Explain the methodology used, the results obtained, and how it relates to your project.
