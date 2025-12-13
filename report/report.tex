@@ -59,8 +59,7 @@ Once cleaned, the dataset allowed me to visualize behavior across roles and matc
 
 % Describe the data
 \subsection{Data Description}
-We obtained a collection of match data by crawling the website rivalsmeta.com, which collates statistics from official trackers integrated into the game's various platforms (PC, PlayStation, and Xbox). Our crawler is written in Python, with the Playwright library being used to navigate the site and interact with dynamic page elements, while the BeautifulSoup library was used to parse the HTML into an easily-navigable DOM tree from which we could extract the relevant data. The crawler followed a breadth-first approach to locate new pages to scrape–it began with a few hand-selected public profiles of players near the top of the leaderboards, from which it pulled the data for every match they had played during the target time period. The data for each of these matches includes the identifiers of the player's teammates and opponents, all of which were added to a queue to be processed in the same manner as the original profiles. The process was repeated, while tracking which players' profiles had already been visited, eventually yielding data on 330,914 matches including 458,565 unique players. 
-The dataset consists of over 310,000 Marvel Rivals matches collected from competitive play logs. Each match contains two teams, with player-level statistics such as damage, healing, deaths, hero usage, and rank. Players may swap heroes mid-match, resulting in variable hero counts per player. The target variable is a binary label indicating whether Team One or Team Two won the match. -KD
+
 
 
 Describe the dataset(s) used in this project. Include information such as:
@@ -270,16 +269,15 @@ Discuss and analyze the results:
 Summarize the key findings of your project. Restate the problem, the methods used, and the main results.
 
 \subsection{Future Work}
-Discuss potential improvements and future directions:
-\begin{itemize}
-    \item What could be done to improve the results?
-    \item What additional experiments could be conducted?
-    \item How could this work be extended?
-\end{itemize}
 
-% ============================================================================
-\section*{References}
-% ============================================================================
+Several extensions could improve both the efficiency and usability of this project.
+
+\textbf{Training efficiency improvements.} While the current NumPy implementation trains successfully on a large dataset, training speed could be improved by introducing more optimized optimization techniques and infrastructure. Future versions could incorporate adaptive optimizers (e.g., Adam), momentum-based updates, mixed precision or GPU acceleration (e.g., using PyTorch), and faster data loading via memory-mapped arrays or chunked training. In addition, feature selection or dimensionality reduction could reduce input size while preserving predictive signal, improving convergence speed and runtime.
+
+\textbf{Improving the hero recommendation system.} The current recommender evaluates candidates using typical per-hero statistics derived from the dataset. Future work could improve recommendation quality by incorporating stronger composition constraints (e.g., dynamically enforcing role balance), modeling synergy beyond a static team-up list (e.g., learned synergy weights from co-occurrence statistics), and adding opponent-aware counters. Another extension would be confidence calibration, so probability outputs better reflect real-world uncertainty and produce more consistent recommendation confidence across different input scenarios.
+
+\textbf{Web-based implementation for real users.} To make the system usable outside the command line, the project could be deployed as a web application. A lightweight backend API could load the trained model weights, accept hero inputs from users, and return win probability and role-based recommendations. A simple frontend could allow players to select heroes through a searchable interface, optionally include map selection, and visualize predicted probabilities and recommended picks. This would transform the project from a research prototype into an interactive tool that players and analysts could use in real drafting scenarios. (KD)
+
 
 % If using a .bib file, uncomment the following two lines:
 % \bibliographystyle{plainnat}
