@@ -122,7 +122,7 @@ Unlike prior work focused on League of Legends, this project applies similar pri
 Discuss another relevant paper or body of work. Explain the methodology used, the results obtained, and how it relates to your project.
 
 \paragraph{Behrouz Barati B:}
-Gradient boosting and ensemble tree methods have demonstrated strong performance in esports match outcome prediction. Xiao et al.~\cite{xiao2021wpgbdt} proposed WP-GBDT, achieving 89.97\% AUC using gradient boosting decision trees with feature engineering on video game logs at IEEE BigData 2021. Akhmedov and Phan~\cite{akhmedov2021dota2} applied machine learning to Dota 2 match prediction, comparing Linear Regression (82\%), Neural Networks (88\%), and LSTM (93\%) using real-time game state data. Gourdeau and Archambault~\cite{gourdeau2020hero} developed discriminative neural networks for hero selection in MOBA games, demonstrating that team composition significantly impacts match outcomes. Our work extends these approaches by applying Random Forest, XGBoost, and CatBoost to Marvel Rivals---a newer hero-based shooter---and introduces a Retrieval-Augmented Generation (RAG) pipeline for natural language exploration of match statistics.
+Gradient boosting and ensemble tree methods have demonstrated strong performance in esports match outcome prediction. Xiao et al.~\cite{xiao2021wpgbdt} proposed WP-GBDT, achieving 89.97\% AUC using gradient boosting decision trees with feature engineering on video game logs at IEEE BigData 2021. Akhmedov and Phan~\cite{akhmedov2021dota2} applied machine learning to Dota 2 match prediction, comparing Linear Regression (82\%), Neural Networks (88\%), and LSTM (93\%) using real-time game state data. Gourdeau and Archambault~\cite{gourdeau2020hero} developed discriminative neural networks for hero selection in MOBA games, demonstrating that team composition significantly impacts match outcomes. Our work extends these approaches by applying Random Forest, XGBoost, and CatBoost to Marvel Rivals and introduces a Retrieval-Augmented Generation (RAG) pipeline for natural language exploration of match statistics.
 
 % ============================================================================
 \section{Methods}
@@ -208,8 +208,8 @@ The recommendation process operates as follows:
 
 This recommendation system transforms the neural network from a passive predictor into an active decision-support tool, allowing users to explore how different hero picks influence match outcomes.
 
-\subsection{Method 2}
-Describe the second method/algorithm used.
+\subsection{SVM}
+A Support Vector Machine (SVM) is a supervised machine learning method for classification which finds the hyperplane that divides the data into target classes while maximizing the margin from the boundary plane to the nearest points. As many datasets are not linearly separable in their original feature space, it is common practice to use a kernel function which implicitly maps the data into a higher dimension space in which the boundary is a hyperplane. The Radial Basis Function (RBF) kernel is a popular choice, mapping the data into an infinite-dimensional space and frequently enabling linear separation of the data. We began with this approach, but as we gathered more data the time to fit the model began to grow impractical (over 1 hour with 100,000 samples, implying a full day of training to fit to the final dataset). Therefore, we used the RBFSampler kernel approximation implemented in scikit-learn, which approximates a RBF feature map using random Fourier features as described in \cite{}
 
 \subsection{Method 3}
 Describe additional methods as needed.
@@ -298,7 +298,7 @@ For the hero recommendation system, qualitative testing showed that familiar met
         Neural Network & \textbf{91.50\%} & -- & -- \\
         SVM & 86.00\% & -- & -- \\
         Random Forest & 89.76\% & 96.94\% & 89.59\% \\
-        XGBoost & 89.97\% & \textbf{97.16\%} & \textbf{89.81\%} \\
+        XGBoost & 89.97\% & 97.16\% & 89.81\% \\
         CatBoost & 89.88\% & 97.05\% & 89.72\% \\
         RAG (LLM) & 80.00\% & -- & -- \\
         \bottomrule
@@ -365,10 +365,6 @@ Discuss potential improvements and future directions:
     \item How could this work be extended?
 \end{itemize}
 
-% ============================================================================
-\section*{References}
-% ============================================================================
-
 % Manual references:
 \begin{thebibliography}{9}
 
@@ -387,6 +383,9 @@ K. Akhmedov and A. Phan. (2021). \textit{Machine Learning Models for DOTA 2 Outc
 
 \bibitem{gourdeau2020hero}
 D. Gourdeau and L. Archambault. (2020). \textit{Discriminative Neural Network for Hero Selection in Professional Heroes of the Storm and DOTA 2}. IEEE Transactions on Games, vol. 12, no. 4, pp. 427--436. DOI: 10.1109/TG.2020.2972463
+
+\bibitem{randomkitchensinks}
+10.5555/2981780.2981944
 
 \end{thebibliography}
 
