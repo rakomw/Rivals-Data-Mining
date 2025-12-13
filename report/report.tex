@@ -34,33 +34,24 @@
 \begin{document}
 
 \maketitle
-
-\begin{abstract}
-This project investigates predicting match outcomes in Marvel Rivals using machine learning. It focuses on transforming raw match logs into a structured dataset, engineering team-level and player-level features, and training a neural network to predict match winners. Using over 310{,}000 cleaned matches, the model captures nonlinear relationships such as role composition, hero synergy, and performance consistency, achieving over 91\% accuracy across training, validation, and test sets. Part of the motivation for this project was my experience as an e-sport's player. Being able to make decisions off of simple statistics from a game is huge for the industry and a growing need in a data driven society.
-\end{abstract}
-
 % ============================================================================
 \section{Introduction}
-Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history. We sought to develop models that could accurately determine the outcome of a match based on these statistics 
+Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history. Being able to make decisions off of simple statistics from a game is huge for the industry and a growing need in a data driven society. We sought to develop models that could accurately determine the outcome of a match based on these statistics. 
 
 % ============================================================================
 
 % Describe the problem
 \subsection{Problem Description}
   
-The goal of my portion of the project was to predict the winner of a Marvel Rivals match using team compositions, player performance measures, and structural game features. In the data, it reminded me of how coaches look at team strength—not just through raw kills or damage, but through composition, synergy, consistency, and tempo. My work focused on turning messy, inconsistent JSON data into a form that a predictive model could actually understand, and then extending that model into a hero recommendation system that helps guide draft decision-making.
+The goal of my contribution was to predict the winner of a Marvel Rivals match using team composition, player performance metrics, and structural game features. Rather than relying solely on raw damage or kill counts, the approach focuses on composition, synergy, consistency, and tempo—similar to how team strength is evaluated in competitive play. My work centered on transforming raw, inconsistent JSON match logs into a structured dataset suitable for modeling, and extending the resulting model into a hero recommendation system to support draft decision-making.
 
-The dataset consisted of over 310,000 cleaned matches. Each match included two teams, each with players who could swap heroes and roles mid-match. The raw JSON was not directly usable; time formats varied (“30s”, “8.5m”), some players had 0 minutes played, and certain teams had more than six listed players. A major part of my role was designing the cleaning pipeline that resolved these inconsistencies.
+The dataset consists of over 310{,}000 cleaned matches, each containing two teams whose players may swap heroes and roles mid-match. Significant preprocessing was required due to inconsistent time formats, zero-minute players, and irregular team sizes. A key component of the cleaning pipeline was randomized team flipping: because Team One appears to win more frequently due to logging structure, matches were flipped with 50\% probability to remove positional bias and force the model to learn outcome-driving features rather than shortcuts.
 
-A central idea in the cleaning process was randomized team flipping. In the raw data, Team One wins more frequently simply because of how the logs were structured. If left untreated, the neural network would learn that “Team One wins” instead of learning why they win. To counter this, I flipped teams, scores, and labels with 50\% probability. This forced the model to rely only on actual features, not positional bias.
-
-Once cleaned, the dataset allowed me to visualize behavior across roles and match dynamics—from average Tank role minutes to per-minute efficiency distributions. These insights shaped the feature engineering for the neural network and guided the eventual hero recommendation system. 
-
+After cleaning, exploratory analysis of role usage and per-minute performance informed the feature engineering process and directly influenced both the neural network design and the hero recommendation system.
 
 % Describe the data
 \subsection{Data Description}
-We obtained a collection of match data by crawling the website rivalsmeta.com, which collates statistics from official trackers integrated into the game's various platforms (PC, PlayStation, and Xbox). Our crawler is written in Python, with the Playwright library being used to navigate the site and interact with dynamic page elements, while the BeautifulSoup library was used to parse the HTML into an easily-navigable DOM tree from which we could extract the relevant data. The crawler followed a breadth-first approach to locate new pages to scrape–it began with a few hand-selected public profiles of players near the top of the leaderboards, from which it pulled the data for every match they had played during the target time period. The data for each of these matches includes the identifiers of the player's teammates and opponents, all of which were added to a queue to be processed in the same manner as the original profiles. The process was repeated, while tracking which players' profiles had already been visited, eventually yielding data on 330,914 matches including 458,565 unique players. 
-The dataset consists of over 310,000 Marvel Rivals matches collected from competitive play logs. Each match contains two teams, with player-level statistics such as damage, healing, deaths, hero usage, and rank. Players may swap heroes mid-match, resulting in variable hero counts per player. The target variable is a binary label indicating whether Team One or Team Two won the match. 
+We obtained a collection of match data by crawling the website rivalsmeta.com, which collates statistics from official trackers integrated into the game's various platforms (PC, PlayStation, and Xbox). Our crawler is written in Python, with the Playwright library being used to navigate the site and interact with dynamic page elements, while the BeautifulSoup library was used to parse the HTML into an easily-navigable DOM tree from which we could extract the relevant data. The crawler followed a breadth-first approach to locate new pages to scrape–it began with a few hand-selected public profiles of players near the top of the leaderboards, from which it pulled the data for every match they had played during the target time period. The data for each of these matches includes the identifiers of the player's teammates and opponents, all of which were added to a queue to be processed in the same manner as the original profiles. The process was repeated, while tracking which players' profiles had already been visited, eventually yielding data on 330,914 matches, including 458,565 unique players. Each match contains two teams, with player-level statistics such as damage, healing, deaths, hero usage, and rank. Players may swap heroes mid-match, resulting in variable hero counts per player. The target variable is a binary label indicating whether Team One or Team Two won the match. 
 
 
 Describe the dataset(s) used in this project. Include information such as:
@@ -73,13 +64,13 @@ Describe the dataset(s) used in this project. Include information such as:
 
 % Data preparation
 \subsection{Data Preparation}
-The first stage of my contribution was building a cleaning pipeline capable of preparing 310,000 matches for modeling. The major steps included:
+The first stage of my contribution was building a cleaning pipeline capable of preparing 330,914 matches for modeling. The major steps included:
 \begin{itemize}
 	\item 	Time normalization: Converting formats like “8.5m” or “45s” into consistent numeric minutes.
 	\item 	Filtering invalid players: Removing players with 0 minutes played, since they introduce noise into per-minute calculations.
 	\item	Enforcing team size: Some matches listed more than 6 players on a team; I kept only the 6 highest-minute players.
 	\item 	Role mapping: Every hero was mapped into Tank, DPS, or Support, allowing role-share features.
-	\item 	Randomized flipping: With 50% probability, I flipped the entire match—team_one ↔ team_two, scores, and winner.
+\item Randomized flipping: With 50\% probability, I flipped the entire match (team\_one \(\leftrightarrow\) team\_two, scores, and winner).
 This prevents the model from learning position-based shortcuts.
 	\item 	Leakage prevention: Final score and round count were explicitly excluded from model input. 
 \end{itemize}
@@ -100,7 +91,7 @@ Describe the data preprocessing steps:
 \subsection{Data Visualization}
 Include visualizations that help understand the data distribution and patterns.
 
-After cleaning, I explored distributions of role minutes, per-minute efficiency, and hero usage. These visualizations helped confirm that Tanks, DPS, and Supports exhibit distinct performance patterns, and guided the feature engineering choices used in the neural network. -KD
+After cleaning, I explored distributions of role minutes, per-minute efficiency, and hero usage. These visualizations helped confirm that Tanks, DPS, and Supports exhibit distinct performance patterns, and guided the feature engineering choices used in the neural network.
 
 % Example figure placeholder
 % \begin{figure}[H]
@@ -114,14 +105,14 @@ After cleaning, I explored distributions of role minutes, per-minute efficiency,
 \section{Related Work}
 % ============================================================================
 
-% Each group member should write one paragraph and include their name
-\paragraph{Cordova, Chaim Joseph A., et al.:}
-Unlike prior work focused on League of Legends, this project applies similar principles to Marvel Rivals and extends outcome prediction into a live hero recommendation system.
+\paragraph{Ken Douglas:}
+Prior work has shown that match outcomes can be predicted accurately using engineered player- and team-level features rather than raw game logs, reinforcing the importance of feature engineering before model training~\cite{ref1}. The effectiveness of neural models combined with normalized performance metrics motivated my use of per-minute statistics, carry-style aggregates, and a sigmoid-based neural network output for win probability prediction.
 
-\paragraph{Author 2:}
+Other studies have demonstrated that team composition alone, independent of in-game events, has a measurable impact on win probability~\cite{ref6}. While those approaches rely on search-based optimization, I adapt the core idea by using a trained neural network to dynamically evaluate and rank candidate hero picks during the draft phase.
+\paragraph{Robert Moore}
 Discuss another relevant paper or body of work. Explain the methodology used, the results obtained, and how it relates to your project.
 
-\paragraph{Behrouz Barati B:}
+\paragraph{}
 Gradient boosting and ensemble tree methods have demonstrated strong performance in esports match outcome prediction. Xiao et al.~\cite{xiao2021wpgbdt} proposed WP-GBDT, achieving 89.97\% AUC using gradient boosting decision trees with feature engineering on video game logs at IEEE BigData 2021. Akhmedov and Phan~\cite{akhmedov2021dota2} applied machine learning to Dota 2 match prediction, comparing Linear Regression (82\%), Neural Networks (88\%), and LSTM (93\%) using real-time game state data. Gourdeau and Archambault~\cite{gourdeau2020hero} developed discriminative neural networks for hero selection in MOBA games, demonstrating that team composition significantly impacts match outcomes. Our work extends these approaches by applying Random Forest, XGBoost, and CatBoost to Marvel Rivals and introduces a Retrieval-Augmented Generation (RAG) pipeline for natural language exploration of match statistics.
 
 % ============================================================================
@@ -209,14 +200,10 @@ The recommendation process operates as follows:
 This recommendation system transforms the neural network from a passive predictor into an active decision-support tool, allowing users to explore how different hero picks influence match outcomes.
 
 \subsection{SVM}
-A Support Vector Machine (SVM) is a supervised machine learning method for classification which finds the hyperplane that divides the data into target classes while maximizing the margin from the boundary plane to the nearest points. As many datasets are not linearly separable in their original feature space, it is common practice to use a kernel function which implicitly maps the data into a higher dimension space in which the boundary is a hyperplane. The Radial Basis Function (RBF) kernel is a popular choice, mapping the data into an infinite-dimensional space and frequently enabling linear separation of the data. We began with this approach, but as we gathered more data the time to fit the model began to grow impractical (over 1 hour with 100,000 samples, implying a full day of training to fit to the final dataset). Therefore, we used the RBFSampler kernel approximation implemented in scikit-learn, which approximates a RBF feature map using random Fourier features as described in \cite{randomkitchensinks}, and fit a linear SVM classifier to the transformed data. This achieved nearly identical results as the fully kernelized approach on smaller subsets of our data, but was much more computationally efficient, being able to fit to the final dataset of over 300k items in roughly 1 minute. 
+A Support Vector Machine (SVM) is a supervised machine learning method for classification which finds the hyperplane that divides the data into target classes while maximizing the margin from the boundary plane to the nearest points. As many datasets are not linearly separable in their original feature space, it is common practice to use a kernel function which implicitly maps the data into a higher dimension space in which the boundary is a hyperplane. The Radial Basis Function (RBF) kernel is a popular choice, mapping the data into an infinite-dimensional space and frequently enabling linear separation of the data. We began with this approach, but as we gathered more data the time to fit the model began to grow impractical (over 1 hour with 100,000 samples, implying a full day of training to fit to the final dataset). Therefore, we used the RBFSampler kernel approximation implemented in scikit-learn, which approximates a RBF feature map using random Fourier features as described in \cite{randomkitchensinks}, and fit a linear SVM classifier to the transformed data. This achieved nearly identical results as the fully kernelized approach on smaller subsets of our data, but was much more computationally efficient, being able to fit to the final dataset of over 300k items in roughly 1 minute. The hyperparameters $\gamma$ and n\_components of the RBF sampler were tuned via cross-validation, with peak performance being found with $\gamma$ set to scale inversely to the number of features and the calculated variance in the original data, and $n\_components = 48$.
 
-\subsection{Method 3}
-Describe additional methods as needed.
-
-% ----------------------------------------
-% Behrouz Barati B's Methods (Tree-based + RAG)
-% ----------------------------------------
+\subsection{Individual Player Models}
+We also developed SVM models for predicting match outcomes and season-long player performance based on individual player's match statistics. The first of these was a linear SVM classifier like the one described above, but only operating on a single player's data rather than the entire team's. This approach reached an accuracy of 67\% in classifying matches as a win or loss, compared to the 89\% accuracy of the model given the full team's data. This result emphasizes the team-based nature of the game, showing that in as many as one in three games a player could find their team losing despite individually performing very well, or winning while undercontributing to the team. We also trained SVM-based regression models in an attempt to predict a player's season-long Win/Loss ratio, peak ELO rating, and average ELO rating, based only on their average match statistics. Despite trying various adjustments, none of these models ultimately performed significantly better than random--$R^2$ values for each ranged from $0.06-0.14$. We believe it may be possible to construct models that better reflect player skill and can predict these outcomes, but we also believe that this result could demonstrate the efficacy of the online matchmaking system: a player may win many matches at first, creating an impressive statistical record and a high W/L ratio, but as their ELO rises and they are paired with increasingly skilled opponents, the expected tendency is for their performance to stabilize and eventually converge to 50/50. It is notable that the model predicting season-long average ELO was the most effective of the three, indicating that there is still some difference in performance between a high-ranked player and a low-ranked player even when their Win/Loss ratios have converged to a similar level. 
 
 \subsection{Random Forest}
 Random Forest is an ensemble learning method that constructs multiple decision trees during training and outputs the mode of their predictions. Each tree is trained on a bootstrap sample of the data with a random subset of features at each split, reducing overfitting through decorrelation. The final prediction is:
@@ -260,13 +247,11 @@ where $\mathbf{e}_q$ and $\mathbf{e}_d$ are the embedding vectors for query $q$ 
     \item \textbf{Generation:} Retrieved context is combined with meta statistics and passed to \texttt{llama3.1} for response generation.
 \end{itemize}
 
-\textbf{Winner Prediction:} The system also predicts match winners using direct LLM prompting on a 20-sample test subset. Match statistics (kills, deaths, damage, healing) are passed directly to \texttt{llama3.1} without semantic retrieval, achieving 80\% accuracy (16/20 correct).
+\textbf{Winner Prediction:} For winner prediction, the RAG pipeline uses semantic search to retrieve the top 100 similar matches from 5,000 indexed documents. The query is constructed from match statistics (hero compositions, kills, deaths), embedded, and matched against the ChromaDB index. The top 10 retrieved matches are included in the LLM prompt as context for prediction. Testing on 100 randomly sampled matches achieved 61\% accuracy, while preliminary tests on 1,000 samples showed improved accuracy of approximately 80\%.
 
 % ============================================================================
 \section{Evaluation}
 % ============================================================================
-
-This section evaluates the performance of the neural network model and the hero recommendation system.
 
 \subsection{Evaluation Metrics}
 
@@ -300,7 +285,7 @@ For the hero recommendation system, qualitative testing showed that familiar met
         Random Forest & 89.76\% & 96.94\% & 89.59\% \\
         XGBoost & 89.97\% & 97.16\% & 89.81\% \\
         CatBoost & 89.88\% & 97.05\% & 89.72\% \\
-        RAG (LLM) & 80.00\% & -- & -- \\
+        RAG (LLM) & 61\%-80\% & -- & -- \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -314,40 +299,19 @@ The RAG system successfully answers natural language queries about match statist
 \end{itemize}
 
 \subsection{Discussion}
-Discuss and analyze the results:
-\begin{itemize}
-    \item Which method performed best and why?
-    \item Were there any surprising findings?
-    \item What are the limitations of each method?
-\end{itemize}
 
 \textbf{Tree-Based Models:} All three ensemble methods achieved approximately 90\% accuracy with minimal performance differences. XGBoost achieved the highest metrics (89.97\% accuracy, 97.16\% AUC-ROC), while CatBoost trained fastest (1.76s). The high AUC-ROC scores ($>$97\%) indicate strong class separation capability. Feature importance analysis revealed that deaths, kills, and final hits were the most predictive features across all models.
 
-\textbf{RAG System:} The RAG pipeline achieved 80\% accuracy on winner prediction (16/20 correct)---lower than tree-based methods but offering interpretable natural language responses. Its primary value lies in enabling non-technical exploration of match patterns rather than pure prediction accuracy.
+\textbf{Cross-Validation:} We employed 5-fold stratified cross-validation to ensure robust evaluation. Stratification maintained class balance across folds, critical given the balanced win/loss distribution after randomized team flipping. The low standard deviations ($\pm$0.08--0.13\%) across folds indicate stable model performance regardless of data partitioning (see Appendix~\ref{sec:appendix} for detailed CV results).
 
-% Figures (small size)
+\textbf{RAG System:} The RAG pipeline achieved 61\% accuracy on 100 samples and approximately 80\% on 1,000 samples using semantic search---lower than tree-based methods but demonstrating that accuracy improves with larger sample sizes. This gap highlights that while RAG excels at natural language exploration of match statistics, structured ML models remain superior for pure prediction tasks. The RAG system's value lies in enabling non-technical exploration of match patterns rather than prediction accuracy.
+
+% Figures
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.48\textwidth]{figures/model_comparison.png}
     \caption{Performance comparison of tree-based models.}
     \label{fig:model_comparison}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \begin{minipage}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{figures/combined_roc.png}
-        \caption{ROC curves for tree-based models.}
-        \label{fig:roc_curves}
-    \end{minipage}
-    \hfill
-    \begin{minipage}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{figures/xgb_feature_importance.png}
-        \caption{XGBoost feature importance.}
-        \label{fig:feature_importance}
-    \end{minipage}
 \end{figure}
 
 % ============================================================================
@@ -358,22 +322,18 @@ Discuss and analyze the results:
 Summarize the key findings of your project. Restate the problem, the methods used, and the main results.
 
 \subsection{Future Work}
-Discuss potential improvements and future directions:
+Several directions could extend this research:
 \begin{itemize}
-    \item What could be done to improve the results?
-    \item What additional experiments could be conducted?
-    \item How could this work be extended?
+    \item \textbf{RAG Scaling:} Our RAG winner prediction showed improved accuracy with larger sample sizes (61\% on 100 samples vs.\ 80\% on 1,000 samples). With additional computational resources, testing on larger sample sizes (10,000+ matches) could further improve accuracy and better characterize the RAG pipeline's prediction ceiling.
+    \item \textbf{Before Match Prediction:} Extending models to predict outcomes before a match using partial game state data.
+    \item \textbf{Hero Recommendation Enhancement:} Incorporating temporal meta shifts and player-specific performance history.
 \end{itemize}
 
 % Manual references:
 \begin{thebibliography}{9}
 
 \bibitem{ref1}
-Cordova, Chaim Joseph A., Carl Victor A. Villaceran, and Christine F. Peña. (2024). 
-\textit{Predicting League of Legends Match Outcomes Through Machine Learning Models Using Past Match Player Performance}. 
-
-\bibitem{ref2}
-Author(s). (Year). \textit{Title of the paper}. Journal/Conference Name.
+C. J. A. Cordova, C. V. A. Villaceran and C. F. Peña, \textit{Predicting League of Legends Match Outcomes Through Machine Learning Models Using Past Match Player Performance,} 2024 IEEE International Conference on Computing (ICOCO), Kuala Lumpur, Malaysia, 2024, pp. 522-527, doi: 10.1109/ICOCO62848.2024.10928259.
 
 \bibitem{xiao2021wpgbdt}
 H. Xiao, Y. Liu, D. Du, and Z. Lu. (2021). \textit{WP-GBDT: An Approach for Winner Prediction using Gradient Boosting Decision Tree}. IEEE International Conference on Big Data, pp. 5765--5769. DOI: 10.1109/BigData52589.2021.9671688
@@ -387,6 +347,53 @@ D. Gourdeau and L. Archambault. (2020). \textit{Discriminative Neural Network fo
 \bibitem{randomkitchensinks}
 Rahimi, Ali and Recht, Benjamin (2008) \textit{Weighted sums of random kitchen sinks: replacing minimization with randomization in learning}. Proceedings of the 22nd International Conference on Neural Information Processing Systems, pp. 1313-1320. DOI: 10.5555/2981780.2981944
 
+\bibitem{ref6}
+L. M. Costa, A. C. C. Souza and F. C. M. Souza, "An Approach for Team Composition in League of Legends using Genetic Algorithm," 2019 18th Brazilian Symposium on Computer Games and Digital Entertainment (SBGames), Rio de Janeiro, Brazil, 2019, pp. 52-61, doi: 10.1109/SBGames.2019.00018.
+
 \end{thebibliography}
+% ============================================================================
+\newpage
+\appendix
+\section{Appendix}
+\label{sec:appendix}
+% ============================================================================
+
+\subsection{Cross-Validation Results}
+
+Table~\ref{tab:cv_results} presents the 5-fold stratified cross-validation results for tree-based models. The low standard deviations demonstrate consistent performance across different data partitions.
+
+\begin{table}[H]
+    \centering
+    \caption{5-Fold Stratified Cross-Validation Results}
+    \label{tab:cv_results}
+    \begin{tabular}{lcc}
+        \toprule
+        Model & Mean CV Accuracy & Std Dev \\
+        \midrule
+        Random Forest & 89.83\% & $\pm$0.08\% \\
+        XGBoost & 90.01\% & $\pm$0.13\% \\
+        CatBoost & 90.05\% & $\pm$0.13\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Additional Figures}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/combined_roc.png}
+        \caption{ROC curves for tree-based models showing strong discrimination ability (AUC $>$ 0.97).}
+        \label{fig:roc_curves}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/xgb_feature_importance.png}
+        \caption{XGBoost feature importance ranking.}
+        \label{fig:feature_importance}
+    \end{minipage}
+\end{figure}
 
 \end{document}
