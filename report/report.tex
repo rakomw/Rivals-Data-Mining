@@ -26,8 +26,8 @@
     Ken Douglas \\
     \texttt{kenneth.douglas.994@my.csun.edu}
     \and
-    Behrouz Barati \\
-    \texttt{author3@email.com}
+    Behrouz Barati B \\
+    \texttt{b3h@me.com}
 }
 \date{December 12, 2025}
 
@@ -121,8 +121,8 @@ Unlike prior work focused on League of Legends, this project applies similar pri
 \paragraph{Author 2:}
 Discuss another relevant paper or body of work. Explain the methodology used, the results obtained, and how it relates to your project.
 
-\paragraph{Author 3:}
-Discuss additional related work. Compare and contrast different approaches in the literature and identify gaps that your project aims to address.
+\paragraph{Behrouz Barati B:}
+Gradient boosting and ensemble tree methods have demonstrated strong performance in esports match outcome prediction. Xiao et al.~\cite{xiao2021wpgbdt} proposed WP-GBDT, achieving 89.97\% AUC using gradient boosting decision trees with feature engineering on video game logs at IEEE BigData 2021. Similarly, Tseng~\cite{tseng2021xgboost} achieved 89.78\% AUC using a single XGBoost model with extensive feature engineering in the same competition. For MOBA games specifically, Akhmedov and Phan~\cite{akhmedov2021dota2} applied machine learning to Dota 2 match prediction, comparing Linear Regression (82\%), Neural Networks (88\%), and LSTM (93\%) using real-time game state data. Gourdeau and Archambault~\cite{gourdeau2020hero} developed discriminative neural networks for hero selection in Heroes of the Storm and Dota 2, demonstrating that team composition significantly impacts match outcomes. Katona et al.~\cite{katona2019death} pioneered micro-predictions in Dota 2 using deep learning at IEEE Conference on Games. Our work extends these approaches by applying Random Forest, XGBoost, and CatBoost to Marvel Rivals---a newer hero-based shooter---and introduces a Retrieval-Augmented Generation (RAG) pipeline for natural language exploration of match statistics.
 
 % ============================================================================
 \section{Methods}
@@ -214,6 +214,38 @@ Describe the second method/algorithm used.
 \subsection{Method 3}
 Describe additional methods as needed.
 
+% ----------------------------------------
+% Behrouz Barati B's Methods (Tree-based + RAG)
+% ----------------------------------------
+
+\subsection{Random Forest}
+Random Forest is an ensemble learning method that constructs multiple decision trees during training and outputs the mode of their predictions. Each tree is trained on a bootstrap sample of the data with a random subset of features at each split, reducing overfitting through decorrelation.
+
+\textbf{Configuration:} We used 100 estimators with default scikit-learn parameters. The model was trained on 105 features: 19 team statistics (kills, deaths, damage, healing, etc.) and 86 hero composition features (43 heroes $\times$ 2 teams encoded as binary presence indicators). Training used an 80/20 split with 5-fold stratified cross-validation.
+
+\subsection{XGBoost}
+XGBoost (Extreme Gradient Boosting) is a sequential boosting algorithm where each tree corrects errors from previous trees using second-order gradient optimization. It employs regularization (L1/L2) and column subsampling to prevent overfitting.
+
+\textbf{Configuration:} We used 100 boosting rounds with learning rate 0.1, max depth 6, and 80\% column subsampling per tree. The objective function was binary logistic regression with evaluation metric set to AUC-ROC.
+
+\subsection{CatBoost}
+CatBoost (Category Boosting) extends gradient boosting with ordered boosting to reduce prediction shift and native handling of categorical features. It uses symmetric trees and applies L2 regularization on leaf values for stability.
+
+\textbf{Configuration:} We used 100 iterations with default learning rate, depth 6, and L2 leaf regularization of 3. CatBoost's ordered boosting reduces overfitting without extensive hyperparameter tuning.
+
+\subsection{Retrieval-Augmented Generation (RAG)}
+We implemented a RAG pipeline to enable natural language exploration of match data. The system converts match records into text documents, embeds them using \texttt{mxbai-embed-large}, and stores vectors in ChromaDB with HNSW indexing (L2 distance).
+
+\textbf{Architecture:}
+\begin{itemize}
+    \item \textbf{Document Processing:} Each match is converted to a structured text document containing team compositions, performance statistics, and outcomes.
+    \item \textbf{Meta Statistics:} Aggregate statistics (averages, hero win rates, damage/kill totals) are pre-computed and prioritized in prompts for accurate aggregate queries.
+    \item \textbf{Retrieval:} On query, the top 100 similar documents are retrieved via cosine similarity.
+    \item \textbf{Generation:} Retrieved context is combined with meta statistics and passed to \texttt{llama3.1} for response generation.
+\end{itemize}
+
+\textbf{Winner Prediction:} The RAG system can also predict match winners by analyzing team statistics and comparing against learned patterns, achieving 75--85\% accuracy on test samples.
+
 % ============================================================================
 \section{Evaluation}
 % ============================================================================
@@ -249,10 +281,52 @@ For the hero recommendation system, qualitative testing showed that familiar met
         \midrule
         Neural Network & 0.915 \\
         SVM & 0.86 \\
-        Random Forrest & 0.90 \\
+        Random Forest & 0.90 \\
         \bottomrule
     \end{tabular}
 \end{table}
+
+% ----------------------------------------
+% Behrouz Barati B's Results (Tree-based + RAG)
+% ----------------------------------------
+
+\begin{table}[H]
+    \centering
+    \caption{Tree-Based Model Comparison (330,914 matches, 80/20 split)}
+    \label{tab:tree_results}
+    \begin{tabular}{lcccc}
+        \toprule
+        Model & Accuracy & AUC-ROC & F1-Score & Train Time (s) \\
+        \midrule
+        Random Forest & 89.76\% & 96.94\% & 89.59\% & 2.64 \\
+        XGBoost & \textbf{89.97\%} & \textbf{97.16\%} & \textbf{89.81\%} & 13.38 \\
+        CatBoost & 89.88\% & 97.05\% & 89.72\% & 1.76 \\
+        RAG (LLM) & 75.00\% & -- & -- & -- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Cross-Validation Results (5-fold stratified)}
+    \label{tab:cv_results}
+    \begin{tabular}{lcc}
+        \toprule
+        Model & Mean CV Score & Std Dev \\
+        \midrule
+        Random Forest & 89.83\% & $\pm$0.08\% \\
+        XGBoost & 90.01\% & $\pm$0.13\% \\
+        CatBoost & 90.05\% & $\pm$0.13\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{RAG Query Examples}
+The RAG system successfully answers natural language queries about match statistics:
+\begin{itemize}
+    \item \textit{``What is the average match duration?''} $\rightarrow$ 673 seconds (11.2 minutes)
+    \item \textit{``What is the average K/D ratio?''} $\rightarrow$ 2.57
+\end{itemize}
 
 \subsection{Discussion}
 Discuss and analyze the results:
@@ -261,6 +335,35 @@ Discuss and analyze the results:
     \item Were there any surprising findings?
     \item What are the limitations of each method?
 \end{itemize}
+
+\textbf{Tree-Based Models:} All three ensemble methods achieved approximately 90\% accuracy with minimal performance differences. XGBoost achieved the highest metrics (89.97\% accuracy, 97.16\% AUC-ROC), while CatBoost trained fastest (1.76s). The high AUC-ROC scores ($>$97\%) indicate strong class separation capability. Feature importance analysis revealed that deaths, kills, and final hits were the most predictive features across all models.
+
+\textbf{RAG System:} The RAG pipeline achieved 75\% accuracy on winner prediction---lower than tree-based methods but offering interpretable natural language responses. Its primary value lies in enabling non-technical exploration of match patterns rather than pure prediction accuracy.
+
+% Figures (small size)
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.48\textwidth]{figures/model_comparison.png}
+    \caption{Performance comparison of tree-based models.}
+    \label{fig:model_comparison}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/combined_roc.png}
+        \caption{ROC curves for tree-based models.}
+        \label{fig:roc_curves}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/xgb_feature_importance.png}
+        \caption{XGBoost feature importance.}
+        \label{fig:feature_importance}
+    \end{minipage}
+\end{figure}
 
 % ============================================================================
 \section{Conclusion}
@@ -294,6 +397,22 @@ Cordova, Chaim Joseph A., Carl Victor A. Villaceran, and Christine F. Peña. (20
 
 \bibitem{ref2}
 Author(s). (Year). \textit{Title of the paper}. Journal/Conference Name.
+
+% Behrouz Barati B's references
+\bibitem{xiao2021wpgbdt}
+H. Xiao, Y. Liu, D. Du, and Z. Lu. (2021). \textit{WP-GBDT: An Approach for Winner Prediction using Gradient Boosting Decision Tree}. IEEE International Conference on Big Data, pp. 5765--5769. DOI: 10.1109/BigData52589.2021.9671688
+
+\bibitem{tseng2021xgboost}
+K. Tseng. (2021). \textit{Predicting Victories in Video Games: Using Single XGBoost with Feature Engineering}. IEEE International Conference on Big Data, pp. 5784--5787. DOI: 10.1109/BigData52589.2021.9671454
+
+\bibitem{akhmedov2021dota2}
+K. Akhmedov and A. Phan. (2021). \textit{Machine Learning Models for DOTA 2 Outcomes Prediction}. arXiv preprint arXiv:2105.09953.
+
+\bibitem{gourdeau2020hero}
+D. Gourdeau and L. Archambault. (2020). \textit{Discriminative Neural Network for Hero Selection in Professional Heroes of the Storm and DOTA 2}. IEEE Transactions on Games, vol. 12, no. 4, pp. 427--436. DOI: 10.1109/TG.2020.2972463
+
+\bibitem{katona2019death}
+A. Katona, R. J. Spick, V. J. Hodge, S. Demediuk, F. Block, A. Drachen, and J. A. Walker. (2019). \textit{Time to Die: Death Prediction in Dota 2 using Deep Learning}. IEEE Conference on Games (CoG), pp. 1--8. DOI: 10.1109/CIG.2019.8847997
 
 \end{thebibliography}
 
