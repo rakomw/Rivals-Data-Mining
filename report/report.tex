@@ -36,12 +36,12 @@
 \maketitle
 
 \begin{abstract}
-This project investigates predicting match outcomes in Marvel Rivals using machine learning. My contribution focuses on transforming raw match logs into a structured dataset, engineering team-level and player-level features, and training a neural network to predict match winners. Using over 310,000 cleaned matches, the model captures nonlinear relationships such as role composition, hero synergy, and performance consistency. The trained model achieves over 91\% accuracy across training, validation, and test sets. I further extended the model into a hero recommendation system that evaluates draft decisions by simulating win probabilities for potential hero picks. [why is esports big] -KD
+This project investigates predicting match outcomes in Marvel Rivals using machine learning. It focuses on transforming raw match logs into a structured dataset, engineering team-level and player-level features, and training a neural network to predict match winners. Using over 310{,}000 cleaned matches, the model captures nonlinear relationships such as role composition, hero synergy, and performance consistency, achieving over 91\% accuracy across training, validation, and test sets. Part of the motivation for this project was my experience as an e-sport's player. Being able to make decisions off of simple statistics from a game is huge for the industry and a growing need in a data driven society.
 \end{abstract}
 
 % ============================================================================
 \section{Introduction}
-Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history. We sought to develop models that could accurately determine the outcome of a match based on these statistics -KD
+Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history. We sought to develop models that could accurately determine the outcome of a match based on these statistics 
 
 % ============================================================================
 
@@ -54,13 +54,13 @@ The dataset consisted of over 310,000 cleaned matches. Each match included two t
 
 A central idea in the cleaning process was randomized team flipping. In the raw data, Team One wins more frequently simply because of how the logs were structured. If left untreated, the neural network would learn that “Team One wins” instead of learning why they win. To counter this, I flipped teams, scores, and labels with 50\% probability. This forced the model to rely only on actual features, not positional bias.
 
-Once cleaned, the dataset allowed me to visualize behavior across roles and match dynamics—from average Tank role minutes to per-minute efficiency distributions. These insights shaped the feature engineering for the neural network and guided the eventual hero recommendation system. -KD
+Once cleaned, the dataset allowed me to visualize behavior across roles and match dynamics—from average Tank role minutes to per-minute efficiency distributions. These insights shaped the feature engineering for the neural network and guided the eventual hero recommendation system. 
 
 
 % Describe the data
 \subsection{Data Description}
 We obtained a collection of match data by crawling the website rivalsmeta.com, which collates statistics from official trackers integrated into the game's various platforms (PC, PlayStation, and Xbox). Our crawler is written in Python, with the Playwright library being used to navigate the site and interact with dynamic page elements, while the BeautifulSoup library was used to parse the HTML into an easily-navigable DOM tree from which we could extract the relevant data. The crawler followed a breadth-first approach to locate new pages to scrape–it began with a few hand-selected public profiles of players near the top of the leaderboards, from which it pulled the data for every match they had played during the target time period. The data for each of these matches includes the identifiers of the player's teammates and opponents, all of which were added to a queue to be processed in the same manner as the original profiles. The process was repeated, while tracking which players' profiles had already been visited, eventually yielding data on 330,914 matches including 458,565 unique players. 
-The dataset consists of over 310,000 Marvel Rivals matches collected from competitive play logs. Each match contains two teams, with player-level statistics such as damage, healing, deaths, hero usage, and rank. Players may swap heroes mid-match, resulting in variable hero counts per player. The target variable is a binary label indicating whether Team One or Team Two won the match. -KD
+The dataset consists of over 310,000 Marvel Rivals matches collected from competitive play logs. Each match contains two teams, with player-level statistics such as damage, healing, deaths, hero usage, and rank. Players may swap heroes mid-match, resulting in variable hero counts per player. The target variable is a binary label indicating whether Team One or Team Two won the match. 
 
 
 Describe the dataset(s) used in this project. Include information such as:
@@ -209,7 +209,7 @@ The recommendation process operates as follows:
 This recommendation system transforms the neural network from a passive predictor into an active decision-support tool, allowing users to explore how different hero picks influence match outcomes.
 
 \subsection{SVM}
-A Support Vector Machine (SVM) is a supervised machine learning method for classification which finds the hyperplane that divides the data into target classes while maximizing the margin from the boundary plane to the nearest points. As many datasets are not linearly separable in their original feature space, it is common practice to use a kernel function which implicitly maps the data into a higher dimension space in which the boundary is a hyperplane. The Radial Basis Function (RBF) kernel is a popular choice, mapping the data into an infinite-dimensional space and frequently enabling linear separation of the data. We began with this approach, but as we gathered more data the time to fit the model began to grow impractical (over 1 hour with 100,000 samples, implying a full day of training to fit to the final dataset). Therefore, we used the RBFSampler kernel approximation implemented in scikit-learn, which approximates a RBF feature map using random Fourier features as described in \cite{}
+A Support Vector Machine (SVM) is a supervised machine learning method for classification which finds the hyperplane that divides the data into target classes while maximizing the margin from the boundary plane to the nearest points. As many datasets are not linearly separable in their original feature space, it is common practice to use a kernel function which implicitly maps the data into a higher dimension space in which the boundary is a hyperplane. The Radial Basis Function (RBF) kernel is a popular choice, mapping the data into an infinite-dimensional space and frequently enabling linear separation of the data. We began with this approach, but as we gathered more data the time to fit the model began to grow impractical (over 1 hour with 100,000 samples, implying a full day of training to fit to the final dataset). Therefore, we used the RBFSampler kernel approximation implemented in scikit-learn, which approximates a RBF feature map using random Fourier features as described in \cite{randomkitchensinks}, and fit a linear SVM classifier to the transformed data. This achieved nearly identical results as the fully kernelized approach on smaller subsets of our data, but was much more computationally efficient, being able to fit to the final dataset of over 300k items in roughly 1 minute. 
 
 \subsection{Method 3}
 Describe additional methods as needed.
@@ -385,7 +385,7 @@ K. Akhmedov and A. Phan. (2021). \textit{Machine Learning Models for DOTA 2 Outc
 D. Gourdeau and L. Archambault. (2020). \textit{Discriminative Neural Network for Hero Selection in Professional Heroes of the Storm and DOTA 2}. IEEE Transactions on Games, vol. 12, no. 4, pp. 427--436. DOI: 10.1109/TG.2020.2972463
 
 \bibitem{randomkitchensinks}
-10.5555/2981780.2981944
+Rahimi, Ali and Recht, Benjamin (2008) \textit{Weighted sums of random kitchen sinks: replacing minimization with randomization in learning}. Proceedings of the 22nd International Conference on Neural Information Processing Systems, pp. 1313-1320. DOI: 10.5555/2981780.2981944
 
 \end{thebibliography}
 
