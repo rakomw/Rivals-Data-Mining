@@ -18,18 +18,18 @@
 \singlespacing
 
 % Title information
-\title{Project Report Title}
+\title{Marvel Rivals Win Prediction and Hero Recommendation}
 \author{
-    Author 1 \\
-    \texttt{author1@email.com}
+    Robert Moore \\
+    \texttt{robert.moore.593@my.csun.edu}
     \and
     Ken Douglas \\
     \texttt{kenneth.douglas.994@my.csun.edu}
     \and
-    Author 3 \\
+    Behrouz Barati \\
     \texttt{author3@email.com}
 }
-\date{\today}
+\date{December 12, 2025}
 
 \begin{document}
 
@@ -41,7 +41,7 @@ This project investigates predicting match outcomes in Marvel Rivals using machi
 
 % ============================================================================
 \section{Introduction}
-Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history.
+Marvel Rivals is a third-person hero shooter where players battle in teams of 6 to accomplish various objectives, such as capturing checkpoints or safely escorting a moving object. As they face the enemy team and achieve or fail their objectives, each player accumulates statistics including damage dealt, KO's, Deaths, and more, which are gathered by integrated trackers and transmitted to online leaderboards along with the final match result. These statistics are the only objective record of a match, but their relationship to the final outcome is indirect and often unclear, making it difficult for, eg, an Esports coach to assess a prospective player's skill on the basis of their match history. We sought to develop models that could accurately determine the outcome of a match based on these statistics
 
 % ============================================================================
 
@@ -115,7 +115,7 @@ After cleaning, I explored distributions of role minutes, per-minute efficiency,
 % ============================================================================
 
 % Each group member should write one paragraph and include their name
-\paragraph{Author 1:}
+\paragraph{Cordova, Chaim Joseph A., et al.:}
 Unlike prior work focused on League of Legends, this project applies similar principles to Marvel Rivals and extends outcome prediction into a live hero recommendation system.
 
 \paragraph{Author 2:}
@@ -130,13 +130,83 @@ Discuss additional related work. Compare and contrast different approaches in th
 
 Describe the methods and algorithms used to solve the problem.
 
-\subsection{Method 1}
-Describe the first method/algorithm used. Include:
+\subsection{Method 1: Neural Network(KD)}
+
+\subsection{Cleaning Pipeline}
+
+The first stage of my contribution was building a cleaning pipeline capable of preparing over 310{,}000 matches for modeling. The raw Marvel Rivals JSON data was inconsistent and not directly usable, so several preprocessing steps were required.
+
+The major steps in the cleaning pipeline were as follows:
 \begin{itemize}
-    \item Mathematical formulation (if applicable)
-    \item Hyperparameters and how they were selected
-    \item Implementation details
+    \item \textbf{Time normalization:} All time formats (e.g., ``8.5m'' or ``45s'') were converted into consistent numeric minute values.
+    \item \textbf{Filtering invalid players:} Players with zero minutes played were removed, as they introduce noise into per-minute performance calculations.
+    \item \textbf{Enforcing team size:} Some matches listed more than six players on a team; in these cases, only the six players with the highest total minutes were retained.
+    \item \textbf{Role mapping:} Each hero was mapped to one of three roles---Tank, DPS, or Support---enabling role-based feature engineering.
+    \item \textbf{Randomized team flipping:} With 50\% probability, the entire match was flipped (team\_one $\leftrightarrow$ team\_two), including scores and winner labels. This prevents the model from learning positional shortcuts such as ``Team One wins more often.''
+    \item \textbf{Leakage prevention:} Final scores and round counts were explicitly excluded from the neural network input features.
 \end{itemize}
+
+After these steps, the cleaned dataset represented a realistic competitive environment with consistent structure across all matches.
+
+\subsection{Feature Engineering}
+
+The neural network relies heavily on engineered features that represent team strength, synergy, tempo, and performance distribution. The engineered feature set includes:
+
+\begin{itemize}
+    \item \textbf{Raw team totals:} Damage dealt, healing, damage taken, kills, assists, final hits, and deaths.
+    \item \textbf{Per-minute efficiency metrics:} Damage per minute (DPM), healing per minute (HPM), and damage taken per minute, which normalize performance by playtime.
+    \item \textbf{Carry score:}
+    \[
+    \text{Carry Score} = \frac{\text{damage} + \text{taken} + \text{healed} + \text{final hits}}{\text{deaths} + 1}
+    \]
+    This metric captures high-impact, low-death players and helps identify which team has a dominant ``carry,'' regardless of role.
+    \item \textbf{Role composition:} Total and percentage minutes played by Tanks, DPS, and Supports.
+    \item \textbf{Player consistency features:} Hero swap count, number of heroes played, and main-hero usage share.
+    \item \textbf{Synergy and team-up features:} Counts of known hero team-up combinations (e.g., Invisible Woman and Human Torch) to capture composition synergy.
+    \item \textbf{Statistical distributions:} Mean, maximum, and standard deviation values for deaths, DPM, and carry scores across players on each team.
+\end{itemize}
+
+Together, these features create a detailed statistical fingerprint of each team, capturing both raw performance and compositional structure.
+
+\subsection{Neural Network Model}
+
+The predictive model is a two-hidden-layer neural network implemented entirely in NumPy. The architecture consists of:
+\begin{itemize}
+    \item An input layer with approximately 94 engineered features.
+    \item A first hidden layer with 16 neurons using the Leaky ReLU activation function.
+    \item A second hidden layer with 16 neurons using the Leaky ReLU activation function.
+    \item An output layer with a sigmoid activation function that produces the probability of Team One winning the match.
+\end{itemize}
+
+This architecture balances expressive power with computational efficiency. The data exhibits strong nonlinear relationships---such as role synergy, hero swapping behavior, and carry distributions---but deeper or wider networks increased training time without improving generalization. Leaky ReLU was chosen to maintain stable gradients even when feature values are sparse or negative.
+
+The training configuration was as follows:
+\begin{itemize}
+    \item \textbf{Loss function:} Binary Cross-Entropy
+    \item \textbf{Optimization:} Mini-batch Gradient Descent
+    \item \textbf{Batch size:} 2048
+    \item \textbf{Learning rate:} 0.001
+    \item \textbf{Early stopping patience:} 5 epochs
+    \item \textbf{Standardization:} Feature means and standard deviations computed using the training split only
+\end{itemize}
+
+This configuration resulted in stable and efficient convergence on the full dataset.
+
+\subsection{Hero Recommendation System}
+
+After training the neural network, I extended the project with a hero recommendation system designed to simulate draft decision-making.
+
+The recommendation process operates as follows:
+\begin{enumerate}
+    \item The user inputs up to five friendly heroes and up to six enemy heroes.
+    \item Typical per-hero statistics are generated using aggregate statistics computed from the dataset.
+    \item For each hero not yet selected, the system simulates adding that hero to the friendly team as the sixth pick.
+    \item Each simulated team composition is encoded into the same feature vector used during training.
+    \item The trained neural network evaluates the predicted win probability for each candidate composition.
+    \item The system returns the top three recommended heroes for each role: Tank, DPS, and Support.
+\end{enumerate}
+
+This recommendation system transforms the neural network from a passive predictor into an active decision-support tool, allowing users to explore how different hero picks influence match outcomes.
 
 \subsection{Method 2}
 Describe the second method/algorithm used.
@@ -165,7 +235,7 @@ Present your experimental results.
         \toprule
         Method & Accuracy & Precision & Recall \\
         \midrule
-        Method 1 & 0.00 & 0.00 & 0.00 \\
+        Neural Network & 91.5 & 0.00 & 0.00 \\
         Method 2 & 0.00 & 0.00 & 0.00 \\
         Method 3 & 0.00 & 0.00 & 0.00 \\
         \bottomrule
@@ -207,7 +277,8 @@ Discuss potential improvements and future directions:
 \begin{thebibliography}{9}
 
 \bibitem{ref1}
-Author(s). (Year). \textit{Title of the paper}. Journal/Conference Name.
+Cordova, Chaim Joseph A., Carl Victor A. Villaceran, and Christine F. Peña. (2024). 
+\textit{Predicting League of Legends Match Outcomes Through Machine Learning Models Using Past Match Player Performance}. 
 
 \bibitem{ref2}
 Author(s). (Year). \textit{Title of the paper}. Journal/Conference Name.
