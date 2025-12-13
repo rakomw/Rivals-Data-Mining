@@ -1,0 +1,187 @@
+\documentclass[11pt]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+% \usepackage{natbib}  % Uncomment if using .bib file with bibtex
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+
+% Single spacing
+\usepackage{setspace}
+\singlespacing
+
+% Title information
+\title{Project Report Title}
+\author{
+    Author 1 \\
+    \texttt{author1@email.com}
+    \and
+    Author 2 \\
+    \texttt{author2@email.com}
+    \and
+    Author 3 \\
+    \texttt{author3@email.com}
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Brief summary of your project, including the problem addressed, methods used, and key findings.
+\end{abstract}
+
+% ============================================================================
+\section{Introduction}
+% ============================================================================
+
+% Describe the problem
+\subsection{Problem Description}
+Describe the problem you are trying to solve. What is the motivation behind this work? Why is it important?
+
+% Describe the data
+\subsection{Data Description}
+Describe the dataset(s) used in this project. Include information such as:
+\begin{itemize}
+    \item Source of the data
+    \item Number of samples and features
+    \item Types of variables (categorical, numerical, etc.)
+    \item Target variable (if applicable)
+\end{itemize}
+
+% Data preparation
+\subsection{Data Preparation}
+Describe the data preprocessing steps:
+\begin{itemize}
+    \item Handling missing values
+    \item Feature encoding
+    \item Normalization/Standardization
+    \item Feature selection or engineering
+    \item Train/test split strategy
+\end{itemize}
+
+% Data visualization
+\subsection{Data Visualization}
+Include visualizations that help understand the data distribution and patterns.
+
+% Example figure placeholder
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.8\textwidth]{figures/data_visualization.png}
+%     \caption{Description of the visualization}
+%     \label{fig:data_viz}
+% \end{figure}
+
+% ============================================================================
+\section{Related Work}
+% ============================================================================
+
+% Each group member should write one paragraph and include their name
+\paragraph{Author 1:}
+Discuss relevant papers and prior work related to this problem. Explain the approaches used in previous research, their strengths and limitations, and how your work builds upon or differs from them.
+
+\paragraph{Author 2:}
+Discuss another relevant paper or body of work. Explain the methodology used, the results obtained, and how it relates to your project.
+
+\paragraph{Author 3:}
+Discuss additional related work. Compare and contrast different approaches in the literature and identify gaps that your project aims to address.
+
+% ============================================================================
+\section{Methods}
+% ============================================================================
+
+Describe the methods and algorithms used to solve the problem.
+
+\subsection{Method 1}
+Describe the first method/algorithm used. Include:
+\begin{itemize}
+    \item Mathematical formulation (if applicable)
+    \item Hyperparameters and how they were selected
+    \item Implementation details
+\end{itemize}
+
+\subsection{Method 2}
+Describe the second method/algorithm used.
+
+\subsection{Method 3}
+Describe additional methods as needed.
+
+% ============================================================================
+\section{Evaluation}
+% ============================================================================
+
+Compare the methods you used and present your results.
+
+\subsection{Evaluation Metrics}
+Describe the metrics used to evaluate your models (e.g., accuracy, precision, recall, F1-score, RMSE, etc.).
+
+\subsection{Results}
+Present your experimental results.
+
+% Example table
+\begin{table}[H]
+    \centering
+    \caption{Comparison of Methods}
+    \label{tab:results}
+    \begin{tabular}{lccc}
+        \toprule
+        Method & Accuracy & Precision & Recall \\
+        \midrule
+        Method 1 & 0.00 & 0.00 & 0.00 \\
+        Method 2 & 0.00 & 0.00 & 0.00 \\
+        Method 3 & 0.00 & 0.00 & 0.00 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Discussion}
+Discuss and analyze the results:
+\begin{itemize}
+    \item Which method performed best and why?
+    \item Were there any surprising findings?
+    \item What are the limitations of each method?
+\end{itemize}
+
+% ============================================================================
+\section{Conclusion}
+% ============================================================================
+
+\subsection{Summary}
+Summarize the key findings of your project. Restate the problem, the methods used, and the main results.
+
+\subsection{Future Work}
+Discuss potential improvements and future directions:
+\begin{itemize}
+    \item What could be done to improve the results?
+    \item What additional experiments could be conducted?
+    \item How could this work be extended?
+\end{itemize}
+
+% ============================================================================
+\section*{References}
+% ============================================================================
+
+% If using a .bib file, uncomment the following two lines:
+% \bibliographystyle{plainnat}
+% \bibliography{references}
+
+% Manual references:
+\begin{thebibliography}{9}
+
+\bibitem{ref1}
+Author(s). (Year). \textit{Title of the paper}. Journal/Conference Name.
+
+\bibitem{ref2}
+Author(s). (Year). \textit{Title of the paper}. Journal/Conference Name.
+
+\end{thebibliography}
+
+\end{document}
