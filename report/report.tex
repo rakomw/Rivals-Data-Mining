@@ -246,9 +246,9 @@ where gradients for example $i$ are computed using only preceding examples in th
 \textbf{Configuration:} We used 100 iterations with default learning rate, depth 6, and L2 leaf regularization of 3. CatBoost's ordered boosting reduces overfitting without extensive hyperparameter tuning.
 
 \subsection{Retrieval-Augmented Generation (RAG)}
-We implemented a RAG pipeline to enable natural language exploration of match data. The system converts match records into text documents, embeds them using \texttt{mxbai-embed-large}, and stores vectors in ChromaDB with HNSW indexing (L2 distance). Document retrieval uses cosine similarity:
+We implemented a RAG pipeline to enable natural language exploration of match data. The system converts match records into text documents, embeds them using \texttt{mxbai-embed-large}, and stores vectors in ChromaDB with HNSW indexing. Document retrieval uses L2 (Euclidean) distance:
 \[
-\text{sim}(q, d) = \frac{\mathbf{e}_q \cdot \mathbf{e}_d}{\|\mathbf{e}_q\| \|\mathbf{e}_d\|}
+d(q, d) = \|\mathbf{e}_q - \mathbf{e}_d\|_2 = \sqrt{\sum_{i=1}^{n}(e_{q,i} - e_{d,i})^2}
 \]
 where $\mathbf{e}_q$ and $\mathbf{e}_d$ are the embedding vectors for query $q$ and document $d$.
 
@@ -256,11 +256,11 @@ where $\mathbf{e}_q$ and $\mathbf{e}_d$ are the embedding vectors for query $q$ 
 \begin{itemize}
     \item \textbf{Document Processing:} Each match is converted to a structured text document containing team compositions, performance statistics, and outcomes.
     \item \textbf{Meta Statistics:} Aggregate statistics (averages, hero win rates, damage/kill totals) are pre-computed and prioritized in prompts for accurate aggregate queries.
-    \item \textbf{Retrieval:} On query, the top 100 similar documents are retrieved via cosine similarity.
+    \item \textbf{Retrieval:} On query, the top 100 similar documents are retrieved via L2 distance.
     \item \textbf{Generation:} Retrieved context is combined with meta statistics and passed to \texttt{llama3.1} for response generation.
 \end{itemize}
 
-\textbf{Winner Prediction:} The RAG system can also predict match winners by analyzing team statistics and comparing against learned patterns, achieving 80\% accuracy on test samples (16/20 correct).
+\textbf{Winner Prediction:} The system also predicts match winners using direct LLM prompting on a 20-sample test subset. Match statistics (kills, deaths, damage, healing) are passed directly to \texttt{llama3.1} without semantic retrieval, achieving 80\% accuracy (16/20 correct).
 
 % ============================================================================
 \section{Evaluation}
